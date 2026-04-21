@@ -104,11 +104,13 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useTheme } from '../composables/useTheme'
+import { logout } from '../api/user'
+import { resetAuthChecked } from '../router'
 
 const router = useRouter()
 const theme = useTheme()
 
-const appTitle = '前端模板系统'
+const appTitle = '驭门龙运维面板'
 const showMenu = ref(false)
 const isDark = ref(theme.isDark())
 const avatarUrl = ref('https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png')
@@ -146,9 +148,15 @@ const handleMenuAction = (action: string) => {
   if (action === 'settings') router.push('/settings')
 }
 
-const handleLogout = () => {
+const handleLogout = async () => {
+  try {
+    await logout()
+  } catch {
+    // cookie may already be expired, proceed anyway
+  }
   localStorage.removeItem('userInfo')
   sessionStorage.removeItem('userInfo')
+  resetAuthChecked()
   showMenu.value = false
   router.push('/login')
 }

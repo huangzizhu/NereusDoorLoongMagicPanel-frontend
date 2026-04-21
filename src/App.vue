@@ -1,18 +1,28 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+import { useRoute } from 'vue-router'
 import Sidebar from './components/SideBar.vue'
 import TopBar from "./components/TopBar.vue"
 import { useSidebarState } from './composables/useSidebarState'
 
+const route = useRoute()
 const { isCollapsed } = useSidebarState()
+
+const showLayout = computed(() => route.meta.requiresAuth !== false)
 </script>
 
 <template>
   <div class="app-container">
-    <TopBar />
-    <Sidebar />
-    <main class="content-container" :class="{ 'sidebar-collapsed': isCollapsed }">
+    <template v-if="showLayout">
+      <TopBar />
+      <Sidebar />
+      <main class="content-container" :class="{ 'sidebar-collapsed': isCollapsed }">
+        <router-view />
+      </main>
+    </template>
+    <template v-else>
       <router-view />
-    </main>
+    </template>
   </div>
 </template>
 

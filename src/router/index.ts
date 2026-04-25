@@ -15,6 +15,30 @@ const routes: Array<RouteRecordRaw> = [
         meta: { requiresAuth: true }
     },
     {
+        path: '/file',
+        name: 'FileExplorer',
+        component: () => import('../views/FileExplorer.vue'),
+        meta: { requiresAuth: true }
+    },
+    {
+        path: '/settings',
+        name: 'Settings',
+        component: () => import('../views/Settings.vue'),
+        meta: { requiresAuth: true }
+    },
+    {
+        path: '/firewall',
+        name: 'Firewall',
+        component: () => import('../views/Firewall.vue'),
+        meta: { requiresAuth: true }
+    },
+    {
+        path: '/settings/apikey',
+        name: 'SettingsApiKey',
+        component: () => import('../views/SettingsApiKey.vue'),
+        meta: { requiresAuth: true }
+    },
+    {
         path: '/:pathMatch(.*)*',
         name: 'NotFound',
         component: () => import('../views/NotFound.vue')

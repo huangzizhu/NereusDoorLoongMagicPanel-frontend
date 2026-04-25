@@ -3,25 +3,25 @@
   --color-bg: #f8fafc;
   --color-bg-elevated: rgba(255, 255, 255, 0.72);
   --color-bg-surface: #ffffff;
-  --color-bg-hover: rgba(99, 102, 241, 0.04);
-  --color-bg-active: rgba(99, 102, 241, 0.08);
+  --color-bg-hover: rgba(59, 130, 246, 0.04);
+  --color-bg-active: rgba(59, 130, 246, 0.08);
   --color-bg-inset: #f1f5f9;
 
-  --color-primary: #6366f1;
-  --color-primary-light: #818cf8;
-  --color-primary-dark: #4f46e5;
-  --color-primary-ghost: rgba(99, 102, 241, 0.06);
-  --color-primary-shadow: rgba(99, 102, 241, 0.3);
+  --color-primary: #3b82f6;
+  --color-primary-light: #60a5fa;
+  --color-primary-dark: #2563eb;
+  --color-primary-ghost: rgba(59, 130, 246, 0.06);
+  --color-primary-shadow: rgba(59, 130, 246, 0.3);
 
-  --color-gradient-start: #6366f1;
-  --color-gradient-end: #8b5cf6;
+  --color-gradient-start: #3b82f6;
+  --color-gradient-end: #06b6d4;
 
   --color-text: #1e293b;
   --color-text-secondary: #64748b;
   --color-text-muted: #94a3b8;
   --color-text-faint: #cbd5e1;
 
-  --color-border: rgba(99, 102, 241, 0.06);
+  --color-border: rgba(59, 130, 246, 0.08);
   --color-border-solid: #e2e8f0;
   --color-divider: #f1f5f9;
 
@@ -37,19 +37,26 @@
   --color-warning-light: #fbbf24;
   --color-warning-bg: rgba(245, 158, 11, 0.1);
 
-  --color-info: #3b82f6;
-  --color-info-light: #60a5fa;
-  --color-info-bg: rgba(59, 130, 246, 0.1);
+  --color-info: #8b5cf6;
+  --color-info-light: #a78bfa;
+  --color-info-bg: rgba(139, 92, 246, 0.1);
 
   --color-avatar-border: #f1f5f9;
 
+  --color-checkbox-bg: #ffffff;
+  --color-checkbox-border: #cbd5e1;
+  --color-checkbox-check: #ffffff;
+  --color-search-checkbox-bg: #ffffff;
+  --color-search-checkbox-border: #94a3b8;
+  --color-search-checkbox-check: #ffffff;
+
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.06), 0 2px 4px -2px rgba(0, 0, 0, 0.04);
-  --shadow-lg: 0 4px 6px -1px rgba(0, 0, 0, 0.06), 0 10px 30px -5px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(99, 102, 241, 0.04);
+  --shadow-lg: 0 4px 6px -1px rgba(0, 0, 0, 0.06), 0 10px 30px -5px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(59, 130, 246, 0.04);
 
   --backdrop-blur: blur(20px) saturate(180%);
 
-  --scrollbar-thumb: rgba(99, 102, 241, 0.15);
+  --scrollbar-thumb: rgba(59, 130, 246, 0.15);
 
   --topbar-height: 60px;
   --sidebar-width: 240px;
@@ -60,25 +67,25 @@
   --color-bg: #0c1222;
   --color-bg-elevated: rgba(22, 33, 55, 0.72);
   --color-bg-surface: #1a2332;
-  --color-bg-hover: rgba(129, 140, 248, 0.06);
-  --color-bg-active: rgba(129, 140, 248, 0.1);
+  --color-bg-hover: rgba(96, 165, 250, 0.06);
+  --color-bg-active: rgba(96, 165, 250, 0.1);
   --color-bg-inset: #151e2d;
 
-  --color-primary: #818cf8;
-  --color-primary-light: #a5b4fc;
-  --color-primary-dark: #6366f1;
-  --color-primary-ghost: rgba(129, 140, 248, 0.08);
-  --color-primary-shadow: rgba(129, 140, 248, 0.25);
+  --color-primary: #60a5fa;
+  --color-primary-light: #93c5fd;
+  --color-primary-dark: #3b82f6;
+  --color-primary-ghost: rgba(96, 165, 250, 0.08);
+  --color-primary-shadow: rgba(96, 165, 250, 0.25);
 
-  --color-gradient-start: #818cf8;
-  --color-gradient-end: #a78bfa;
+  --color-gradient-start: #60a5fa;
+  --color-gradient-end: #22d3ee;
 
   --color-text: #e2e8f0;
   --color-text-secondary: #94a3b8;
   --color-text-muted: #64748b;
   --color-text-faint: #475569;
 
-  --color-border: rgba(129, 140, 248, 0.08);
+  --color-border: rgba(96, 165, 250, 0.08);
   --color-border-solid: #1e293b;
   --color-divider: #1e293b;
 
@@ -94,17 +101,84 @@
   --color-warning-light: #fcd34d;
   --color-warning-bg: rgba(251, 191, 36, 0.1);
 
-  --color-info: #60a5fa;
-  --color-info-light: #93c5fd;
-  --color-info-bg: rgba(96, 165, 250, 0.1);
+  --color-info: #a78bfa;
+  --color-info-light: #c4b5fd;
+  --color-info-bg: rgba(167, 139, 250, 0.1);
 
   --color-avatar-border: #334155;
 
+  --color-checkbox-bg: #0f172a;
+  --color-checkbox-border: #475569;
+  --color-checkbox-check: #e2e8f0;
+  --color-search-checkbox-bg: #131d30;
+  --color-search-checkbox-border: #3f526f;
+  --color-search-checkbox-check: #dbeafe;
+
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.2);
-  --shadow-lg: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 10px 30px -5px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(129, 140, 248, 0.06);
+  --shadow-lg: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 10px 30px -5px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(96, 165, 250, 0.06);
 
   --backdrop-blur: blur(20px) saturate(150%);
 
-  --scrollbar-thumb: rgba(129, 140, 248, 0.2);
+  --scrollbar-thumb: rgba(96, 165, 250, 0.2);
+}
+
+[data-theme="purple"] {
+  --color-bg: #0f0a1e;
+  --color-bg-elevated: rgba(28, 18, 54, 0.72);
+  --color-bg-surface: #1a1230;
+  --color-bg-hover: rgba(139, 92, 246, 0.07);
+  --color-bg-active: rgba(139, 92, 246, 0.12);
+  --color-bg-inset: #170e29;
+
+  --color-primary: #a78bfa;
+  --color-primary-light: #c4b5fd;
+  --color-primary-dark: #8b5cf6;
+  --color-primary-ghost: rgba(139, 92, 246, 0.1);
+  --color-primary-shadow: rgba(139, 92, 246, 0.35);
+
+  --color-gradient-start: #8b5cf6;
+  --color-gradient-end: #ec4899;
+
+  --color-text: #ede9fe;
+  --color-text-secondary: #c4b5fd;
+  --color-text-muted: #a78bfa;
+  --color-text-faint: #7c3aed;
+
+  --color-border: rgba(139, 92, 246, 0.12);
+  --color-border-solid: #2e2159;
+  --color-divider: #1f1640;
+
+  --color-danger: #fb7185;
+  --color-danger-hover: #f43f5e;
+  --color-danger-bg: rgba(251, 113, 133, 0.1);
+
+  --color-success: #34d399;
+  --color-success-light: #6ee7b7;
+  --color-success-bg: rgba(52, 211, 153, 0.1);
+
+  --color-warning: #fbbf24;
+  --color-warning-light: #fcd34d;
+  --color-warning-bg: rgba(251, 191, 36, 0.1);
+
+  --color-info: #38bdf8;
+  --color-info-light: #7dd3fc;
+  --color-info-bg: rgba(56, 189, 248, 0.1);
+
+  --color-avatar-border: #2e2159;
+
+  --color-checkbox-bg: #1f1640;
+  --color-checkbox-border: #5b3ea8;
+  --color-checkbox-check: #ede9fe;
+  --color-search-checkbox-bg: #22183f;
+  --color-search-checkbox-border: #6d52b3;
+  --color-search-checkbox-check: #ede9fe;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.25);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.35), 0 2px 4px -2px rgba(0, 0, 0, 0.25);
+  --shadow-lg: 0 4px 6px -1px rgba(0, 0, 0, 0.35), 0 10px 30px -5px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(139, 92, 246, 0.1);
+
+  --backdrop-blur: blur(20px) saturate(150%);
+
+  --scrollbar-thumb: rgba(139, 92, 246, 0.25);
 }

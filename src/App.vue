@@ -3,6 +3,8 @@ import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import Sidebar from './components/SideBar.vue'
 import TopBar from "./components/TopBar.vue"
+import NotificationContainer from './components/notification/NotificationContainer.vue'
+import LoadingOverlay from './components/LoadingOverlay.vue'
 import { useSidebarState } from './composables/useSidebarState'
 
 const route = useRoute()
@@ -23,6 +25,8 @@ const showLayout = computed(() => route.meta.requiresAuth !== false)
     <template v-else>
       <router-view />
     </template>
+    <NotificationContainer />
+    <LoadingOverlay />
   </div>
 </template>
 

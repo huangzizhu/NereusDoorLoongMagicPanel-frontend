@@ -3,12 +3,14 @@ import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { markAuthChecked } from '../../router'
 import { login } from '../../api/user'
+import { useNotification } from '../../composables/useNotification'
 
 const emit = defineEmits<{
     (e: 'login-success'): void
 }>()
 
 const router = useRouter()
+const notification = useNotification()
 
 const form = reactive({
     account: '',
@@ -37,16 +39,24 @@ async function handleLogin() {
 
     try {
         const hashedPassword = await hashPassword(form.password)
-        await login({ account: form.account, hashedPassword })
-        markAuthChecked()
-        emit('login-success')
-        router.push('/')
+        const res = await login({ account: form.account, hashedPassword })
+        if (res.data.code === 1) {
+            notification.info('登录成功', '欢迎回来')
+            markAuthChecked()
+            emit('login-success')
+            router.push('/')
+        } else {
+            errorMsg.value = res.data.msg || '登录失败'
+            notification.error('登录失败', res.data.msg || '请检查用户名和密码')
+        }
     } catch (err: any) {
         const data = err?.response?.data
         if (data?.msg) {
             errorMsg.value = data.msg
+            notification.error('登录失败', data.msg)
         } else {
             errorMsg.value = '登录失败，请稍后重试'
+            notification.error('登录失败', '网络异常，请稍后重试')
         }
     } finally {
         loading.value = false

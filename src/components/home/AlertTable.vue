@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import type { AlertItem } from '../../types/system'
 import { getAlerts, markAlertRead, markAlertProcessed } from '../../api/system'
+import { useNotification } from '../../composables/useNotification'
 
 const alerts = ref<AlertItem[]>([])
 const total = ref(0)
@@ -9,6 +10,7 @@ const page = ref(1)
 const pageSize = ref(10)
 const loading = ref(false)
 const includeProcessed = ref(false)
+const notification = useNotification()
 
 const levelMap: Record<number, { label: string; cls: string }> = {
   0: { label: '信息', cls: 'info' },
@@ -29,8 +31,11 @@ async function fetchAlerts() {
     if (res.data.code === 1) {
       alerts.value = res.data.data.items
       total.value = res.data.data.total
+    } else {
+      notification.error('获取告警失败', res.data.msg || '请稍后重试')
     }
   } catch {
+    notification.error('获取告警失败', '网络异常，请稍后重试')
   } finally {
     loading.value = false
   }
@@ -40,9 +45,13 @@ async function handleRead(id: number) {
   try {
     const res = await markAlertRead(id)
     if (res.data.code === 1) {
+      notification.info('标记已读成功', '告警已标记为已读')
       await fetchAlerts()
+    } else {
+      notification.warning('标记已读失败', res.data.msg || '请稍后重试')
     }
   } catch {
+    notification.error('标记已读失败', '网络异常，请稍后重试')
   }
 }
 
@@ -50,9 +59,14 @@ async function handleProcess(id: number) {
   try {
     const res = await markAlertProcessed(id)
     if (res.data.code === 1) {
+      notification.info('标记已处理成功', '告警已标记为已处理') 
       await fetchAlerts()
+      
+    } else {
+      notification.warning('标记已处理失败', res.data.msg || '请稍后重试')
     }
   } catch {
+    notification.error('标记已处理失败', '网络异常，请稍后重试')
   }
 }
 

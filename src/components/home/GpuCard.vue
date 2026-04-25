@@ -32,6 +32,7 @@ function getUsageGradient(percent: number): string {
   if (percent >= 70) return 'linear-gradient(180deg, var(--color-warning-light) 0%, var(--color-warning) 100%)'
   return 'linear-gradient(180deg, var(--color-primary-light) 0%, var(--color-primary) 100%)'
 }
+void getUsageGradient
 
 function handleSelect(e: Event) {
   const target = e.target as HTMLSelectElement

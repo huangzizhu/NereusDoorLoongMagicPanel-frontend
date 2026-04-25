@@ -153,7 +153,7 @@ function handleSelect(e: Event) {
   width: 36px;
   height: 36px;
   border-radius: 10px;
-  background: linear-gradient(135deg, var(--color-purple), var(--color-purple-light));
+  background: linear-gradient(135deg, var(--color-gradient-start), var(--color-gradient-end));
   display: flex;
   align-items: center;
   justify-content: center;

@@ -1,6 +1,10 @@
-export type ThemeMode = 'light' | 'dark'
+import { ref } from 'vue'
+
+export type ThemeMode = 'light' | 'dark' | 'purple'
 
 const STORAGE_KEY = 'app-theme'
+
+const validThemes: ThemeMode[] = ['light', 'dark', 'purple']
 
 function getSystemPreference(): ThemeMode {
   if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
@@ -11,7 +15,7 @@ function getSystemPreference(): ThemeMode {
 
 function getStoredTheme(): ThemeMode | null {
   const stored = localStorage.getItem(STORAGE_KEY)
-  if (stored === 'light' || stored === 'dark') return stored
+  if (stored && validThemes.includes(stored as ThemeMode)) return stored as ThemeMode
   return null
 }
 
@@ -19,29 +23,33 @@ function applyTheme(mode: ThemeMode) {
   document.documentElement.setAttribute('data-theme', mode)
 }
 
-let currentTheme: ThemeMode
+const currentTheme = ref<ThemeMode>(getStoredTheme() ?? getSystemPreference())
+let initialized = false
 
 export function useTheme() {
-  const stored = getStoredTheme()
-  currentTheme = stored ?? getSystemPreference()
-  applyTheme(currentTheme)
+  if (!initialized) {
+    initialized = true
+    applyTheme(currentTheme.value)
+  }
 
   function getTheme(): ThemeMode {
-    return currentTheme
+    return currentTheme.value
   }
 
   function isDark(): boolean {
-    return currentTheme === 'dark'
+    return currentTheme.value === 'dark' || currentTheme.value === 'purple'
   }
 
   function setTheme(mode: ThemeMode) {
-    currentTheme = mode
+    currentTheme.value = mode
     applyTheme(mode)
     localStorage.setItem(STORAGE_KEY, mode)
   }
 
   function toggleTheme() {
-    setTheme(currentTheme === 'light' ? 'dark' : 'light')
+    const order: ThemeMode[] = ['light', 'dark', 'purple']
+    const idx = order.indexOf(currentTheme.value)
+    setTheme(order[(idx + 1) % order.length])
   }
 
   function initThemeListener() {
@@ -56,6 +64,7 @@ export function useTheme() {
   }
 
   return {
+    currentTheme,
     getTheme,
     isDark,
     setTheme,

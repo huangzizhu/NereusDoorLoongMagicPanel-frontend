@@ -33,6 +33,12 @@ const routes: Array<RouteRecordRaw> = [
         meta: { requiresAuth: true }
     },
     {
+        path: '/process',
+        name: 'ProcessManager',
+        component: () => import('../views/ProcessManager.vue'),
+        meta: { requiresAuth: true }
+    },
+    {
         path: '/settings/apikey',
         name: 'SettingsApiKey',
         component: () => import('../views/SettingsApiKey.vue'),

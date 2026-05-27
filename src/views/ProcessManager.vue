@@ -31,6 +31,9 @@ const lastUpdatedText = ref('尚未收到推送')
 const sortedBy = ref<ProcessSortBy>(PROCESS_SORT_BY.CPU)
 const keywordInput = ref('')
 const keywordApplied = ref('')
+const processPage = ref(1)
+const processPageSize = ref(20)
+const processPortFilter = ref<number | null>(null)
 
 const selectedPids = ref<number[]>([])
 
@@ -91,10 +94,29 @@ const sortOptions = [
   { label: 'PID 排序', value: PROCESS_SORT_BY.PID },
 ]
 
+const processPageSizeOptions = [20, 50, 100, 200]
+
 const selectedCount = computed(() => selectedPids.value.length)
 
+const filteredProcessList = computed(() => {
+  if (processPortFilter.value === null) return processList.value
+  return processList.value.filter((process) => {
+    return (process.ports || []).some((portInfo) => portInfo.port === processPortFilter.value)
+  })
+})
+
+const processTotalPages = computed(() => {
+  return Math.max(1, Math.ceil(filteredProcessList.value.length / processPageSize.value))
+})
+
+const paginatedProcesses = computed(() => {
+  const start = (processPage.value - 1) * processPageSize.value
+  return filteredProcessList.value.slice(start, start + processPageSize.value)
+})
+
 const isAllSelected = computed(() => {
-  return processList.value.length > 0 && selectedPids.value.length === processList.value.length
+  return paginatedProcesses.value.length > 0
+    && paginatedProcesses.value.every((item) => selectedPids.value.includes(item.pid))
 })
 
 const parsedPort = computed(() => {
@@ -129,6 +151,13 @@ const killModeLabel = computed(() => {
 function syncSelectedPids() {
   const validSet = new Set(processList.value.map((item) => item.pid))
   selectedPids.value = selectedPids.value.filter((pid) => validSet.has(pid))
+}
+
+function syncProcessPage() {
+  processPage.value = Math.min(processPage.value, processTotalPages.value)
+  if (processPage.value < 1) {
+    processPage.value = 1
+  }
 }
 
 function closeSse() {
@@ -206,11 +235,14 @@ function normalizeProcessInfo(raw: Partial<ProcessInfo>): ProcessInfo {
 
 function applyKeywordFilter() {
   keywordApplied.value = keywordInput.value.trim()
+  processPage.value = 1
 }
 
 function clearKeywordFilter() {
   keywordInput.value = ''
   keywordApplied.value = ''
+  clearProcessPortFilter()
+  processPage.value = 1
 }
 
 function reconnectSseNow() {
@@ -220,10 +252,13 @@ function reconnectSseNow() {
 
 function toggleSelectAll() {
   if (isAllSelected.value) {
-    selectedPids.value = []
+    const pagePidSet = new Set(paginatedProcesses.value.map((item) => item.pid))
+    selectedPids.value = selectedPids.value.filter((pid) => !pagePidSet.has(pid))
     return
   }
-  selectedPids.value = processList.value.map((item) => item.pid)
+  const merged = new Set(selectedPids.value)
+  paginatedProcesses.value.forEach((item) => merged.add(item.pid))
+  selectedPids.value = [...merged]
 }
 
 function toggleRowSelection(pid: number) {
@@ -393,7 +428,13 @@ function closeProcessDetail() {
   detailState.value.visible = false
 }
 
-async function runAutoClean() {
+const autoCleanConfirmDialog = ref({
+  visible: false,
+  cpuThreshold: 0,
+  memoryThreshold: 0,
+})
+
+function openAutoCleanConfirm() {
   const cpuThreshold = Number(autoCleanForm.value.cpuThreshold)
   const memoryThreshold = Number(autoCleanForm.value.memoryThreshold)
 
@@ -401,6 +442,21 @@ async function runAutoClean() {
     notify.warning('阈值无效', 'CPU 与内存阈值必须在 1 到 100 之间')
     return
   }
+
+  autoCleanConfirmDialog.value = {
+    visible: true,
+    cpuThreshold,
+    memoryThreshold,
+  }
+}
+
+function closeAutoCleanConfirm() {
+  autoCleanConfirmDialog.value.visible = false
+}
+
+async function runAutoClean() {
+  const { cpuThreshold, memoryThreshold } = autoCleanConfirmDialog.value
+  autoCleanConfirmDialog.value.visible = false
 
   autoCleanLoading.value = true
   showLoading()
@@ -471,6 +527,37 @@ function nextLogsPage() {
   if (logsPage.value >= logsTotalPages.value) return
   logsPage.value += 1
   loadProcessLogs()
+}
+
+function prevProcessPage() {
+  if (processPage.value <= 1) return
+  processPage.value -= 1
+}
+
+function nextProcessPage() {
+  if (processPage.value >= processTotalPages.value) return
+  processPage.value += 1
+}
+
+function updateProcessPageSize(pageSize: number) {
+  processPageSize.value = pageSize
+  processPage.value = 1
+}
+
+function applyProcessPortFilter() {
+  if (parsedPort.value === null) {
+    notify.warning('端口无效', '请输入 1 到 65535 之间的端口号')
+    return
+  }
+
+  processPortFilter.value = parsedPort.value
+  processPage.value = 1
+  activeTab.value = 'process'
+}
+
+function clearProcessPortFilter() {
+  processPortFilter.value = null
+  processPage.value = 1
 }
 
 function updateLogsPageSize(pageSize: number) {
@@ -573,6 +660,10 @@ watch(portMatchedProcesses, () => {
   syncPortSelectedPids()
 })
 
+watch(filteredProcessList, () => {
+  syncProcessPage()
+})
+
 watch(sortedBy, () => {
   reconnectSseNow()
 })
@@ -657,10 +748,15 @@ onUnmounted(() => {
         </div>
 
         <div class="toolbar-actions">
-          <button class="secondary-btn" @click="applyKeywordFilter">应用</button>
-          <button class="secondary-btn" @click="clearKeywordFilter">清空</button>
-          <button class="secondary-btn" @click="reconnectSseNow">重连</button>
+          <button class="secondary-btn success-btn" @click="applyKeywordFilter">应用</button>
+          <button class="secondary-btn neutral-btn" @click="clearKeywordFilter">清空</button>
+          <button class="secondary-btn info-btn" @click="reconnectSseNow">重连</button>
         </div>
+      </div>
+
+      <div v-if="processPortFilter !== null" class="filter-banner">
+        <span>当前仅查看监听端口 {{ processPortFilter }} 的进程</span>
+        <button class="secondary-btn neutral-btn" @click="clearProcessPortFilter">取消筛选</button>
       </div>
 
       <div class="batch-row">
@@ -677,27 +773,30 @@ onUnmounted(() => {
           <thead>
             <tr>
               <th class="col-check">
-                <input type="checkbox" :checked="isAllSelected" @change="toggleSelectAll">
+                <input class="checkbox" type="checkbox" :checked="isAllSelected" @change="toggleSelectAll">
               </th>
               <th>PID</th>
               <th>进程名</th>
               <th>用户</th>
               <th>CPU</th>
               <th>内存</th>
-              <th>状态</th>
+              <th class="col-status">状态</th>
               <th>命令</th>
               <th>端口</th>
               <th class="col-actions">操作</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-if="processList.length === 0">
-              <td colspan="10" class="empty-cell">暂未收到进程数据，请检查 SSE 连接状态。</td>
+            <tr v-if="filteredProcessList.length === 0">
+              <td colspan="10" class="empty-cell">
+                {{ processPortFilter !== null ? `当前筛选下未找到监听端口 ${processPortFilter} 的进程。` : '暂未收到进程数据，请检查 SSE 连接状态。' }}
+              </td>
             </tr>
 
-            <tr v-for="item in processList" :key="item.pid">
+            <tr v-for="item in paginatedProcesses" :key="item.pid">
               <td>
                 <input
+                  class="checkbox"
                   type="checkbox"
                   :checked="selectedPids.includes(item.pid)"
                   @change="toggleRowSelection(item.pid)"
@@ -731,14 +830,28 @@ onUnmounted(() => {
               </td>
               <td>
                 <div class="row-actions">
-                  <button class="mini-btn" @click="openProcessDetail(item.pid)">详情</button>
-                  <button class="mini-btn" @click="openKillConfirm([item.pid], 'normal', `PID ${item.pid}`)">温和</button>
+                  <button class="mini-btn info-btn" @click="openProcessDetail(item.pid)">详情</button>
+                  <button class="mini-btn warning-btn" @click="openKillConfirm([item.pid], 'normal', `PID ${item.pid}`)">温和</button>
                   <button class="mini-btn danger" @click="openKillConfirm([item.pid], 'force', `PID ${item.pid}`)">强制</button>
                 </div>
               </td>
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <div class="pagination-row">
+        <label>
+          每页
+          <select :value="processPageSize" @change="updateProcessPageSize(Number(($event.target as HTMLSelectElement).value))">
+            <option v-for="size in processPageSizeOptions" :key="size" :value="size">{{ size }}</option>
+          </select>
+        </label>
+        <span class="page-text">第 {{ processPage }} / {{ processTotalPages }} 页，共 {{ filteredProcessList.length }} 项</span>
+        <div class="pagination-actions">
+          <button class="secondary-btn" :disabled="processPage <= 1" @click="prevProcessPage">上一页</button>
+          <button class="secondary-btn" :disabled="processPage >= processTotalPages" @click="nextProcessPage">下一页</button>
+        </div>
       </div>
     </section>
 
@@ -752,7 +865,10 @@ onUnmounted(() => {
           <div class="card-body">
             <div class="port-input-row">
               <input v-model="portInput" type="number" min="1" max="65535" placeholder="输入端口，例如 8080">
-              <button class="secondary-btn" @click="reconnectSseNow">刷新进程</button>
+              <div class="port-toolbar-actions">
+                <button class="secondary-btn info-btn" @click="reconnectSseNow">刷新进程</button>
+                <button class="secondary-btn primary-tone-btn" @click="applyProcessPortFilter">查看</button>
+              </div>
             </div>
 
             <div v-if="parsedPort === null" class="desc-line">输入有效端口后，将实时匹配占用该端口的进程。</div>
@@ -765,7 +881,7 @@ onUnmounted(() => {
             <div v-if="portMatchedProcesses.length > 0" class="port-match-list">
               <div class="port-match-header">
                 <label class="match-check">
-                  <input type="checkbox" :checked="isPortAllSelected" @change="togglePortSelectAll">
+                  <input class="checkbox" type="checkbox" :checked="isPortAllSelected" @change="togglePortSelectAll">
                   <span>全选</span>
                 </label>
                 <span class="text-muted">已选 {{ portSelectedCount }} 项</span>
@@ -790,6 +906,7 @@ onUnmounted(() => {
               <div v-for="item in portMatchedProcesses" :key="`match-${item.pid}`" class="port-match-item">
                 <label class="match-check">
                   <input
+                    class="checkbox"
                     type="checkbox"
                     :checked="portSelectedPids.includes(item.pid)"
                     @change="togglePortSelection(item.pid)"
@@ -817,8 +934,8 @@ onUnmounted(() => {
                   </div>
                 </div>
                 <div class="match-actions">
-                  <button class="mini-btn" @click="openProcessDetail(item.pid)">详情</button>
-                  <button class="mini-btn" @click="openKillConfirm([item.pid], 'normal', `端口 ${parsedPort ?? '-'}`)">温和</button>
+                  <button class="mini-btn info-btn" @click="openProcessDetail(item.pid)">详情</button>
+                  <button class="mini-btn warning-btn" @click="openKillConfirm([item.pid], 'normal', `端口 ${parsedPort ?? '-'}`)">温和</button>
                   <button class="mini-btn danger" @click="openKillConfirm([item.pid], 'force', `端口 ${parsedPort ?? '-'}`)">强制</button>
                 </div>
               </div>
@@ -842,7 +959,7 @@ onUnmounted(() => {
                   内存阈值 (%)
                   <input v-model.number="autoCleanForm.memoryThreshold" type="number" min="1" max="100">
                 </label>
-                <button class="primary-btn" :disabled="autoCleanLoading" @click="runAutoClean">执行自动清理</button>
+                <button class="primary-btn warning-btn" :disabled="autoCleanLoading" @click="openAutoCleanConfirm">执行自动清理</button>
               </div>
               <div class="auto-clean-result">
                 <div class="result-title">最近一次执行结果</div>
@@ -891,8 +1008,8 @@ onUnmounted(() => {
                 </div>
               </div>
               <div class="zombie-actions">
-                <button class="mini-btn" @click="openProcessDetail(item.pid)">详情</button>
-                <button class="mini-btn" @click="openKillConfirm([item.pid], 'normal', `僵尸 PID ${item.pid}`)">温和</button>
+                <button class="mini-btn info-btn" @click="openProcessDetail(item.pid)">详情</button>
+                <button class="mini-btn warning-btn" @click="openKillConfirm([item.pid], 'normal', `僵尸 PID ${item.pid}`)">温和</button>
                 <button class="mini-btn danger" @click="openKillConfirm([item.pid], 'force', `僵尸 PID ${item.pid}`)">强制</button>
               </div>
             </div>
@@ -904,7 +1021,7 @@ onUnmounted(() => {
     <section v-else class="logs-panel">
       <div class="logs-toolbar">
         <div class="left">
-          <button class="secondary-btn" :disabled="logsLoading" @click="loadProcessLogs">刷新日志</button>
+          <button class="secondary-btn success-btn" :disabled="logsLoading" @click="loadProcessLogs">刷新日志</button>
         </div>
 
         <div class="right">
@@ -916,9 +1033,9 @@ onUnmounted(() => {
               <option :value="50">50</option>
             </select>
           </label>
-          <button class="secondary-btn" :disabled="logsLoading || logsPage <= 1" @click="prevLogsPage">上一页</button>
+          <button class="secondary-btn primary-tone-btn" :disabled="logsLoading || logsPage <= 1" @click="prevLogsPage">上一页</button>
           <span class="page-text">第 {{ logsPage }} / {{ logsTotalPages }} 页</span>
-          <button class="secondary-btn" :disabled="logsLoading || logsPage >= logsTotalPages" @click="nextLogsPage">下一页</button>
+          <button class="secondary-btn primary-tone-btn" :disabled="logsLoading || logsPage >= logsTotalPages" @click="nextLogsPage">下一页</button>
         </div>
       </div>
 
@@ -948,7 +1065,7 @@ onUnmounted(() => {
               <td>{{ log.reason || '-' }}</td>
               <td>{{ log.result || '-' }}</td>
               <td>
-                <button v-if="hasLogDetail(log)" class="mini-btn" @click="openLogDetail(log)">查看</button>
+                <button v-if="hasLogDetail(log)" class="mini-btn info-btn" @click="openLogDetail(log)">查看</button>
                 <span v-else class="text-muted">-</span>
               </td>
               <td class="mono">{{ formatDateText(log.createTime) }}</td>
@@ -957,6 +1074,28 @@ onUnmounted(() => {
         </table>
       </div>
     </section>
+
+    <Teleport to="body">
+      <Transition name="dialog">
+        <div v-if="autoCleanConfirmDialog.visible" class="dialog-overlay" @click.self="closeAutoCleanConfirm">
+          <div class="dialog-card">
+            <div class="dialog-head">
+              <h3>确认执行自动清理</h3>
+              <p>将按 CPU {{ autoCleanConfirmDialog.cpuThreshold }}% 与内存 {{ autoCleanConfirmDialog.memoryThreshold }}% 阈值扫描并终止匹配进程。</p>
+            </div>
+
+            <div class="dialog-body">
+              <p class="warn">该操作会立即尝试终止高占用进程，请确认当前业务允许执行。</p>
+            </div>
+
+            <div class="dialog-actions">
+              <button class="secondary-btn" @click="closeAutoCleanConfirm">取消</button>
+              <button class="primary-btn warning-btn" @click="runAutoClean">确认执行</button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
 
     <Teleport to="body">
       <Transition name="dialog">
@@ -1227,8 +1366,10 @@ onUnmounted(() => {
 
 .input-group input,
 .input-group select,
+.auto-clean-form input,
 .threshold-grid input,
 .logs-toolbar select,
+.pagination-row select,
 .port-input-row input,
 textarea {
   width: 100%;
@@ -1244,8 +1385,10 @@ textarea {
 
 .input-group input:focus,
 .input-group select:focus,
+.auto-clean-form input:focus,
 .threshold-grid input:focus,
 .logs-toolbar select:focus,
+.pagination-row select:focus,
 .port-input-row input:focus,
 textarea:focus {
   border-color: var(--color-primary);
@@ -1257,7 +1400,9 @@ textarea:focus {
 .batch-actions,
 .row-actions,
 .dialog-actions,
-.logs-toolbar .right {
+.logs-toolbar .right,
+.pagination-actions,
+.port-toolbar-actions {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1296,6 +1441,36 @@ textarea:focus {
   background: var(--color-bg-hover);
 }
 
+.secondary-btn.success-btn,
+.mini-btn.success-btn {
+  color: var(--color-success);
+  background: var(--color-success-bg);
+}
+
+.secondary-btn.warning-btn,
+.mini-btn.warning-btn,
+.primary-btn.warning-btn {
+  color: #fff;
+  background: linear-gradient(135deg, var(--color-warning), var(--color-warning-light));
+  box-shadow: 0 8px 18px -10px color-mix(in srgb, var(--color-warning) 70%, transparent);
+}
+
+.secondary-btn.info-btn,
+.mini-btn.info-btn {
+  color: #2563eb;
+  background: rgba(37, 99, 235, 0.12);
+}
+
+.secondary-btn.primary-tone-btn {
+  color: var(--color-primary);
+  background: var(--color-primary-ghost);
+}
+
+.secondary-btn.neutral-btn {
+  color: var(--color-text-secondary);
+  background: color-mix(in srgb, var(--color-bg-inset) 82%, var(--color-border-solid));
+}
+
 .danger-btn {
   color: #fff;
   background: linear-gradient(135deg, var(--color-danger-hover), var(--color-danger));
@@ -1320,6 +1495,38 @@ textarea:focus {
 .mini-btn.danger {
   color: var(--color-danger);
   background: var(--color-danger-bg);
+}
+
+.mini-btn.warning-btn,
+.mini-btn.info-btn,
+.mini-btn.success-btn,
+.secondary-btn.success-btn,
+.secondary-btn.warning-btn,
+.secondary-btn.info-btn,
+.secondary-btn.primary-tone-btn,
+.secondary-btn.neutral-btn {
+  border: 1px solid transparent;
+}
+
+.secondary-btn.info-btn:hover,
+.mini-btn.info-btn:hover {
+  color: #1d4ed8;
+  background: rgba(37, 99, 235, 0.18);
+}
+
+.secondary-btn.success-btn:hover,
+.mini-btn.success-btn:hover {
+  color: var(--color-success);
+  background: color-mix(in srgb, var(--color-success-bg) 84%, var(--color-success) 16%);
+}
+
+.secondary-btn.primary-tone-btn:hover {
+  color: var(--color-primary-dark);
+  background: color-mix(in srgb, var(--color-primary-ghost) 80%, var(--color-primary) 20%);
+}
+
+.secondary-btn.neutral-btn:hover {
+  color: var(--color-text);
 }
 
 .grid-cards {
@@ -1374,6 +1581,11 @@ textarea:focus {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 8px;
+}
+
+.port-toolbar-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .desc-line {
@@ -1615,6 +1827,37 @@ textarea:focus {
   color: var(--color-text-secondary);
 }
 
+.filter-banner,
+.pagination-row {
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: var(--color-bg-surface);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.filter-banner {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--color-primary-ghost) 80%, transparent), transparent),
+    var(--color-bg-surface);
+}
+
+.filter-banner span,
+.pagination-row label {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.pagination-row label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .table-wrap {
   border: 1px solid var(--color-border);
   border-radius: 14px;
@@ -1652,6 +1895,10 @@ textarea:focus {
   width: 36px;
 }
 
+.col-status {
+  width: 88px;
+}
+
 .col-actions {
   width: 210px;
 }
@@ -1677,8 +1924,10 @@ textarea:focus {
 .status-chip {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   border-radius: 999px;
-  padding: 3px 8px;
+  min-width: 64px;
+  padding: 3px 10px;
   font-size: 11px;
   font-weight: 700;
 }
@@ -1760,6 +2009,41 @@ textarea:focus {
 .page-text {
   font-size: 12px;
   color: var(--color-text-secondary);
+}
+
+.checkbox {
+  width: 16px;
+  height: 16px;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  border-radius: 4px;
+  border: 1.5px solid var(--color-checkbox-border);
+  background: var(--color-checkbox-bg);
+  transition: all 0.15s ease;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.checkbox:hover {
+  border-color: var(--color-primary);
+}
+
+.checkbox:checked {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.checkbox:checked::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 4px;
+  height: 8px;
+  border: solid var(--color-checkbox-check);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
 }
 
 .dialog-overlay {
@@ -2002,7 +2286,9 @@ textarea:focus {
   }
 
   .batch-row,
-  .logs-toolbar {
+  .logs-toolbar,
+  .pagination-row,
+  .filter-banner {
     flex-direction: column;
     align-items: flex-start;
   }

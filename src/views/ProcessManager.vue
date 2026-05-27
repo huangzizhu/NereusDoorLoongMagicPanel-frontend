@@ -120,7 +120,9 @@ const isAllSelected = computed(() => {
 })
 
 const parsedPort = computed(() => {
-  const text = portInput.value.trim()
+  const raw = portInput.value as string | number | null | undefined
+  if (raw === null || raw === undefined) return null
+  const text = String(raw).trim()
   if (!text) return null
   const value = Number(text)
   if (!Number.isInteger(value) || value < 1 || value > 65535) return null
@@ -598,6 +600,7 @@ function statusClass(status: string) {
 
 function statusLabel(status: string) {
   const lower = status.toLowerCase()
+  if (lower.includes('idle')) return '空闲'
   if (lower.includes('run')) return '运行中'
   if (lower.includes('sleep')) return '休眠'
   if (lower.includes('zombie')) return '僵尸'
@@ -831,8 +834,8 @@ onUnmounted(() => {
               <td>
                 <div class="row-actions">
                   <button class="mini-btn info-btn" @click="openProcessDetail(item.pid)">详情</button>
-                  <button class="mini-btn warning-btn" @click="openKillConfirm([item.pid], 'normal', `PID ${item.pid}`)">温和</button>
-                  <button class="mini-btn danger" @click="openKillConfirm([item.pid], 'force', `PID ${item.pid}`)">强制</button>
+                  <button class="mini-btn warning-btn" @click="openKillConfirm([item.pid], 'normal', `PID ${item.pid}`)">温和终止</button>
+                  <button class="mini-btn danger" @click="openKillConfirm([item.pid], 'force', `PID ${item.pid}`)">强制终止</button>
                 </div>
               </td>
             </tr>
@@ -935,8 +938,8 @@ onUnmounted(() => {
                 </div>
                 <div class="match-actions">
                   <button class="mini-btn info-btn" @click="openProcessDetail(item.pid)">详情</button>
-                  <button class="mini-btn warning-btn" @click="openKillConfirm([item.pid], 'normal', `端口 ${parsedPort ?? '-'}`)">温和</button>
-                  <button class="mini-btn danger" @click="openKillConfirm([item.pid], 'force', `端口 ${parsedPort ?? '-'}`)">强制</button>
+                  <button class="mini-btn warning-btn" @click="openKillConfirm([item.pid], 'normal', `端口 ${parsedPort ?? '-'}`)">温和终止</button>
+                  <button class="mini-btn danger" @click="openKillConfirm([item.pid], 'force', `端口 ${parsedPort ?? '-'}`)">强制终止</button>
                 </div>
               </div>
             </div>
@@ -1009,8 +1012,8 @@ onUnmounted(() => {
               </div>
               <div class="zombie-actions">
                 <button class="mini-btn info-btn" @click="openProcessDetail(item.pid)">详情</button>
-                <button class="mini-btn warning-btn" @click="openKillConfirm([item.pid], 'normal', `僵尸 PID ${item.pid}`)">温和</button>
-                <button class="mini-btn danger" @click="openKillConfirm([item.pid], 'force', `僵尸 PID ${item.pid}`)">强制</button>
+                <button class="mini-btn warning-btn" @click="openKillConfirm([item.pid], 'normal', `僵尸 PID ${item.pid}`)">温和终止</button>
+                <button class="mini-btn danger" @click="openKillConfirm([item.pid], 'force', `僵尸 PID ${item.pid}`)">强制终止</button>
               </div>
             </div>
           </div>
@@ -1450,9 +1453,9 @@ textarea:focus {
 .secondary-btn.warning-btn,
 .mini-btn.warning-btn,
 .primary-btn.warning-btn {
-  color: #fff;
-  background: linear-gradient(135deg, var(--color-warning), var(--color-warning-light));
-  box-shadow: 0 8px 18px -10px color-mix(in srgb, var(--color-warning) 70%, transparent);
+  color: var(--color-warning);
+  background: var(--color-warning-bg);
+  box-shadow: none;
 }
 
 .secondary-btn.info-btn,
@@ -1504,8 +1507,9 @@ textarea:focus {
 .secondary-btn.warning-btn,
 .secondary-btn.info-btn,
 .secondary-btn.primary-tone-btn,
-.secondary-btn.neutral-btn {
-  border: 1px solid transparent;
+.secondary-btn.neutral-btn,
+.primary-btn.warning-btn {
+  border: 1px solid color-mix(in srgb, var(--color-warning) 24%, transparent);
 }
 
 .secondary-btn.info-btn:hover,
@@ -1518,6 +1522,13 @@ textarea:focus {
 .mini-btn.success-btn:hover {
   color: var(--color-success);
   background: color-mix(in srgb, var(--color-success-bg) 84%, var(--color-success) 16%);
+}
+
+.secondary-btn.warning-btn:hover,
+.mini-btn.warning-btn:hover,
+.primary-btn.warning-btn:hover {
+  color: color-mix(in srgb, var(--color-warning) 88%, var(--color-text) 12%);
+  background: color-mix(in srgb, var(--color-warning-bg) 88%, var(--color-warning) 12%);
 }
 
 .secondary-btn.primary-tone-btn:hover {

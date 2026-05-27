@@ -70,23 +70,19 @@ const navSections: NavSection[] = [
     label: '概览',
     items: [
       { path: '/', name: '首页', icon: svgHome },
-      { path: '/dashboard', name: '仪表盘', icon: svgDashboard },
     ]
   },
   {
     label: '功能',
     items: [
       { path: '/file', name: '文件管理', icon: svgFile },
-      { path: '/table', name: '表格', icon: svgTable },
-      { path: '/form', name: '表单', icon: svgForm },
+      { path: '/firewall', name: '防火墙', icon: svgShield },
+      { path: '/process', name: '进程管理', icon: svgProcess },
     ]
   },
   {
     label: '系统',
     items: [
-      { path: '/firewall', name: '防火墙', icon: svgShield },
-      { path: '/process', name: '进程管理', icon: svgProcess },
-      { path: '/profile', name: '个人中心', icon: svgUser },
       { path: '/settings', name: '设置', icon: svgSettings },
     ]
   },

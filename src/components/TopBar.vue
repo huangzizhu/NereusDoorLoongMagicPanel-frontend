@@ -23,7 +23,7 @@
         <div class="divider-v"></div>
 
         <button class="theme-toggle" @click="handleToggleTheme" :aria-label="themeLabel">
-          <div class="theme-toggle-track" :class="themeTrackClass">
+          <div class="theme-toggle-track" :class="{ 'is-dark': isDark }">
             <div class="theme-toggle-thumb">
               <svg class="icon-sun" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="5" />
@@ -39,9 +39,7 @@
               <svg class="icon-moon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
               </svg>
-              <svg class="icon-purple" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26" />
-              </svg>
+
             </div>
             <span class="star star-1"></span>
             <span class="star star-2"></span>
@@ -119,16 +117,9 @@ const loadingOverlay = useLoadingOverlay()
 
 const appTitle = '驭门龙运维面板'
 const showMenu = ref(false)
-const isDark = computed(() => currentTheme.value === 'dark' || currentTheme.value === 'purple')
-void isDark
-const themeTrackClass = computed(() => ({
-  'is-dark': currentTheme.value === 'dark',
-  'is-purple': currentTheme.value === 'purple',
-}))
+const isDark = computed(() => currentTheme.value === 'dark')
 const themeLabel = computed(() => {
-  if (currentTheme.value === 'light') return '切换到深色模式'
-  if (currentTheme.value === 'dark') return '切换到紫色主题'
-  return '切换到亮色模式'
+  return currentTheme.value === 'light' ? '切换到深色模式' : '切换到亮色模式'
 })
 const avatarUrl = ref('https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png')
 const avatarAreaRef = ref<HTMLElement | null>(null)
@@ -342,14 +333,6 @@ onUnmounted(() => {
   transform: rotate(-90deg) scale(0.5);
 }
 
-.theme-toggle-thumb .icon-purple {
-  position: absolute;
-  color: #a78bfa;
-  transition: opacity 0.3s ease, transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
-  opacity: 0;
-  transform: rotate(-90deg) scale(0.5);
-}
-
 .star {
   position: absolute;
   width: 3px;
@@ -438,53 +421,7 @@ onUnmounted(() => {
   animation: twinkle 2s ease-in-out infinite 1.5s;
 }
 
-.theme-toggle-track.is-purple {
-  background: linear-gradient(135deg, #1e1b4b 0%, #4c1d95 100%);
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
-}
 
-.theme-toggle-track.is-purple .theme-toggle-thumb {
-  transform: translateX(28px);
-  background: #4c1d95;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4), 0 0 8px rgba(139, 92, 246, 0.4);
-}
-
-.theme-toggle-track.is-purple .icon-sun {
-  opacity: 0;
-  transform: rotate(90deg) scale(0.5);
-}
-
-.theme-toggle-track.is-purple .icon-moon {
-  opacity: 0;
-  transform: rotate(90deg) scale(0.5);
-}
-
-.theme-toggle-track.is-purple .icon-purple {
-  opacity: 1;
-  transform: rotate(0deg) scale(1);
-}
-
-.theme-toggle-track.is-purple .star {
-  opacity: 1;
-  transform: scale(1);
-  background: #c4b5fd;
-}
-
-.theme-toggle-track.is-purple .star-1 {
-  animation: twinkle 2s ease-in-out infinite;
-}
-
-.theme-toggle-track.is-purple .star-2 {
-  animation: twinkle 2s ease-in-out infinite 0.5s;
-}
-
-.theme-toggle-track.is-purple .star-3 {
-  animation: twinkle 2s ease-in-out infinite 1s;
-}
-
-.theme-toggle-track.is-purple .star-4 {
-  animation: twinkle 2s ease-in-out infinite 1.5s;
-}
 
 @keyframes twinkle {
   0%, 100% { opacity: 1; transform: scale(1); }
@@ -570,10 +507,6 @@ onUnmounted(() => {
 }
 
 :global([data-theme="dark"]) .dropdown-header {
-  background: linear-gradient(135deg, var(--color-primary-ghost) 0%, var(--color-bg-hover) 100%);
-}
-
-:global([data-theme="purple"]) .dropdown-header {
   background: linear-gradient(135deg, var(--color-primary-ghost) 0%, var(--color-bg-hover) 100%);
 }
 

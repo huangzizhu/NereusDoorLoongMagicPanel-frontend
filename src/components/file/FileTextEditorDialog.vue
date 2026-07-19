@@ -18,6 +18,7 @@ import { useLoadingOverlay } from '../../composables/useLoadingOverlay'
 import type { FileItem } from '../../types/file'
 import { FILE_TYPE_FOLDER } from '../../types/file'
 import * as fileApi from '../../api/file'
+import * as nginxApi from '../../api/nginx'
 import FileCreateDialog from './FileCreateDialog.vue'
 
 interface EditorTab {
@@ -38,15 +39,22 @@ const props = withDefaults(defineProps<{
   initialOpenContent: string
   initialOpenEncoding: string
   initialOpenSizeBytes: number
+  /** 'file' = 文件管理模式（默认，带侧栏）; 'nginx' = nginx 站点配置编辑（隐藏侧栏） */
+  mode?: 'file' | 'nginx'
+  /** nginx 模式时，当前编辑的域名 */
+  nginxDomain?: string
 }>(), {
   initialOpenPath: '',
   initialOpenContent: '',
   initialOpenEncoding: 'utf-8',
   initialOpenSizeBytes: 0,
+  mode: 'file',
+  nginxDomain: '',
 })
 
 const emit = defineEmits<{
   cancel: []
+  saved: [result: { targetPath: string; isSaved: boolean; isReloaded: boolean }]
 }>()
 
 const notify = useNotification()
@@ -504,14 +512,25 @@ async function saveCurrentTab() {
 
   saving.value = true
   try {
-    const res = await fileApi.writeTextFile(tab.path, tab.content)
-    if (res.data.code === 1 && res.data.data.success) {
-      tab.originalContent = tab.content
-      tab.sizeBytes = res.data.data.sizeBytes
-      notify.info('保存成功', tab.path)
-      await loadDirectory(getParentPath(tab.path))
+    if (props.mode === 'nginx' && props.nginxDomain) {
+      const res = await nginxApi.updateNginxSiteConfig(props.nginxDomain, { content: tab.content })
+      if (res.data.code === 1) {
+        tab.originalContent = tab.content
+        notify.info('配置已保存并应用', `${props.nginxDomain} 配置已更新，Nginx 已重载`)
+        emit('saved', res.data.data)
+      } else {
+        notify.warning('配置保存失败', res.data.msg)
+      }
     } else {
-      notify.warning('保存失败', res.data.data?.errorMessage || res.data.msg)
+      const res = await fileApi.writeTextFile(tab.path, tab.content)
+      if (res.data.code === 1 && res.data.data.success) {
+        tab.originalContent = tab.content
+        tab.sizeBytes = res.data.data.sizeBytes
+        notify.info('保存成功', tab.path)
+        await loadDirectory(getParentPath(tab.path))
+      } else {
+        notify.warning('保存失败', res.data.data?.errorMessage || res.data.msg)
+      }
     }
   } catch (e: any) {
     notify.error('保存失败', e.message || '网络错误')
@@ -561,7 +580,7 @@ watch(
       createEditorForActiveTab()
     }
 
-    if (fileList.value.length === 0) {
+    if (props.mode === 'file' && fileList.value.length === 0) {
       await loadDirectory(currentDirPath.value)
     }
   }
@@ -571,6 +590,20 @@ watch(
   () => props.requestOpenToken,
   async () => {
     if (!props.visible || !props.requestOpenPath) return
+
+    // nginx 模式：直接用初始内容创建单标签，不加载文件系统
+    if (props.mode === 'nginx') {
+      const tabPath = `/etc/nginx/sites-enabled/${props.nginxDomain || props.requestOpenPath}.conf`
+      ensureTabFromPayload(
+        tabPath,
+        props.initialOpenContent,
+        props.initialOpenEncoding,
+        props.initialOpenSizeBytes
+      )
+      await nextTick()
+      createEditorForActiveTab()
+      return
+    }
 
     if (props.initialOpenPath && normalizePath(props.initialOpenPath) === normalizePath(props.requestOpenPath)) {
       ensureTabFromPayload(
@@ -610,7 +643,13 @@ onBeforeUnmount(() => {
       <div v-if="visible" class="dialog-overlay" @click.self="requestCloseEditor">
         <div class="dialog-card">
           <div class="dialog-header">
-            <div class="editor-tabs">
+            <!-- nginx 模式：显示域名标题 -->
+            <div v-if="mode === 'nginx'" class="nginx-editor-title">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 0L1.605 6v12L12 24l10.395-6V6L12 0zm6 16.59c0 .705-.646 1.29-1.529 1.29-.631 0-1.351-.255-1.801-.81l-6-7.141v6.66c0 .721-.57 1.29-1.274 1.29H7.32c-.721 0-1.29-.6-1.29-1.29V7.41c0-.705.63-1.29 1.5-1.29.646 0 1.38.255 1.83.81l5.97 7.141V7.41c0-.721.6-1.29 1.29-1.29h.075c.72 0 1.29.6 1.29 1.29v9.18H18z"/></svg>
+              <span>编辑站点配置：<strong>{{ nginxDomain }}</strong></span>
+            </div>
+            <!-- 文件模式：显示多标签 -->
+            <div v-else class="editor-tabs">
               <button
                 v-for="tab in tabs"
                 :key="tab.id"
@@ -632,7 +671,7 @@ onBeforeUnmount(() => {
           </div>
 
           <div class="dialog-main">
-            <aside class="left-panel">
+            <aside v-if="mode === 'file'" class="left-panel">
               <div class="panel-tools">
                 <button class="tool-btn" title="上一级" @click="navigateUp">上一级</button>
                 <button class="tool-btn" title="刷新" @click="loadDirectory(currentDirPath)">刷新</button>
@@ -784,6 +823,25 @@ onBeforeUnmount(() => {
   flex: 1;
   align-items: flex-end;
   padding-top: 2px;
+}
+
+.nginx-editor-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  padding: 0 12px;
+}
+
+.nginx-editor-title strong {
+  color: var(--color-text);
+}
+
+.nginx-editor-title svg {
+  color: #009639;
+  flex-shrink: 0;
 }
 
 .editor-tab {

@@ -1,10 +1,10 @@
 import { ref } from 'vue'
 
-export type ThemeMode = 'light' | 'dark' | 'purple'
+export type ThemeMode = 'light' | 'dark'
 
 const STORAGE_KEY = 'app-theme'
 
-const validThemes: ThemeMode[] = ['light', 'dark', 'purple']
+const validThemes: ThemeMode[] = ['light', 'dark']
 
 function getSystemPreference(): ThemeMode {
   if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
@@ -37,7 +37,7 @@ export function useTheme() {
   }
 
   function isDark(): boolean {
-    return currentTheme.value === 'dark' || currentTheme.value === 'purple'
+    return currentTheme.value === 'dark'
   }
 
   function setTheme(mode: ThemeMode) {
@@ -47,9 +47,7 @@ export function useTheme() {
   }
 
   function toggleTheme() {
-    const order: ThemeMode[] = ['light', 'dark', 'purple']
-    const idx = order.indexOf(currentTheme.value)
-    setTheme(order[(idx + 1) % order.length])
+    setTheme(currentTheme.value === 'light' ? 'dark' : 'light')
   }
 
   function initThemeListener() {

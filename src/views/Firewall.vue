@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import * as firewallApi from '../api/firewall'
-import type { FirewallSwitchStatus, FirewallPortRule, FirewallSshConfig, FirewallSshLogItem } from '../types/firewall'
+import type { FirewallSwitchStatus, FirewallPortRule, FirewallSshConfig, FirewallSshLogItem, FirewallPortRuleDeleteRequest } from '../types/firewall'
 import { useLoadingOverlay } from '../composables/useLoadingOverlay'
 import { useNotification } from '../composables/useNotification'
 import { parse422Errors } from '../utils/errorParser'
@@ -16,16 +16,25 @@ const switchStatus = ref<FirewallSwitchStatus>({
 const rules = ref<FirewallPortRule[]>([])
 const sshConfig = ref<FirewallSshConfig | null>(null)
 const sshLogs = ref<FirewallSshLogItem[]>([])
+const sshLogsPage = ref(1)
+const sshLogsPageSize = ref(10)
 
 const isBootstrapping = ref(true)
 const isSavingFirewallSwitch = ref(false)
 const isSavingSshSwitch = ref(false)
 const isCreatingRule = ref(false)
 const isSavingSshConfig = ref(false)
+const isDeletingRule = ref(false)
+
+const deleteConfirm = ref({
+  visible: false,
+  rule: null as FirewallPortRule | null,
+})
 
 const ruleForm = reactive({
   port: 22,
   protocol: 1,
+  ipVersion: 4,
   sourceIp: '0.0.0.0/0',
   destinationIp: '0.0.0.0/0',
   priority: 100,
@@ -46,6 +55,11 @@ const sshForm = reactive({
 
 const firewallStatusLabel = computed(() => switchStatus.value.firewallEnabled ? '已开启' : '已关闭')
 const sshServiceStatusLabel = computed(() => switchStatus.value.sshServiceEnabled ? '运行中' : '已停用')
+const sshLogsTotalPages = computed(() => Math.max(1, Math.ceil(sshLogs.value.length / sshLogsPageSize.value)))
+const paginatedSshLogs = computed(() => {
+  const start = (sshLogsPage.value - 1) * sshLogsPageSize.value
+  return sshLogs.value.slice(start, start + sshLogsPageSize.value)
+})
 
 function statusClass(enabled: boolean) {
   return enabled ? 'ok' : 'off'
@@ -55,8 +69,16 @@ function ruleProtocolLabel(protocol: number) {
   return protocol === 1 ? 'TCP' : 'UDP'
 }
 
+function ruleIpVersionLabel(ipVersion: number) {
+  return `IPv${ipVersion}`
+}
+
 function ruleActionLabel(action: number) {
   return action === 1 ? '允许' : '拒绝'
+}
+
+function getDefaultRuleIp(ipVersion: number) {
+  return ipVersion === 6 ? '::/0' : '0.0.0.0/0'
 }
 
 function splitByCommaOrLineBreak(input: string) {
@@ -64,6 +86,12 @@ function splitByCommaOrLineBreak(input: string) {
     .split(/[\n,]/)
     .map(v => v.trim())
     .filter(Boolean)
+}
+
+function normalizeSshLogsPage() {
+  if (sshLogsPage.value > sshLogsTotalPages.value) {
+    sshLogsPage.value = sshLogsTotalPages.value
+  }
 }
 
 function applySshConfigToForm(data: FirewallSshConfig) {
@@ -81,10 +109,17 @@ function applySshConfigToForm(data: FirewallSshConfig) {
 function resetRuleForm() {
   ruleForm.port = 22
   ruleForm.protocol = 1
-  ruleForm.sourceIp = '0.0.0.0/0'
-  ruleForm.destinationIp = '0.0.0.0/0'
+  ruleForm.ipVersion = 4
+  ruleForm.sourceIp = getDefaultRuleIp(4)
+  ruleForm.destinationIp = getDefaultRuleIp(4)
   ruleForm.priority = 100
   ruleForm.action = 1
+}
+
+function onRuleIpVersionChange() {
+  const defaultIp = getDefaultRuleIp(ruleForm.ipVersion)
+  ruleForm.sourceIp = defaultIp
+  ruleForm.destinationIp = defaultIp
 }
 
 async function loadSwitchStatus() {
@@ -119,9 +154,25 @@ async function loadSshLogs() {
   const res = await firewallApi.getSshLogs()
   if (res.data.code === 1) {
     sshLogs.value = res.data.data.list
+    normalizeSshLogsPage()
     return
   }
   notify.warning('获取 SSH 日志失败', res.data.msg)
+}
+
+function prevSshLogsPage() {
+  if (sshLogsPage.value <= 1) return
+  sshLogsPage.value -= 1
+}
+
+function nextSshLogsPage() {
+  if (sshLogsPage.value >= sshLogsTotalPages.value) return
+  sshLogsPage.value += 1
+}
+
+function updateSshLogsPageSize(pageSize: number) {
+  sshLogsPageSize.value = pageSize
+  sshLogsPage.value = 1
 }
 
 async function bootstrap() {
@@ -205,6 +256,7 @@ async function onCreateRule() {
     const res = await firewallApi.createFirewallPortRule({
       port: Number(ruleForm.port),
       protocol: Number(ruleForm.protocol),
+      ipVersion: Number(ruleForm.ipVersion),
       sourceIp: ruleForm.sourceIp.trim(),
       destinationIp: ruleForm.destinationIp.trim(),
       priority: Number(ruleForm.priority),
@@ -262,6 +314,46 @@ async function onSaveSshConfig() {
   }
 }
 
+function openDeleteConfirm(rule: FirewallPortRule) {
+  deleteConfirm.value = { visible: true, rule }
+}
+
+function closeDeleteConfirm() {
+  deleteConfirm.value = { visible: false, rule: null }
+}
+
+async function onDeleteRule() {
+  const rule = deleteConfirm.value.rule
+  if (!rule || isDeletingRule.value) return
+
+  isDeletingRule.value = true
+  try {
+    showLoading()
+    const payload: FirewallPortRuleDeleteRequest = {
+      port: rule.port,
+      protocol: rule.protocol,
+      sourceIp: rule.sourceIp,
+      destinationIp: rule.destinationIp,
+      ipVersion: rule.ipVersion,
+    }
+
+    const res = await firewallApi.deleteFirewallPortRule(payload)
+    if (res.data.code === 1) {
+      rules.value = res.data.data.list
+      notify.info('端口规则已删除', `已移除 ${rule.port}/${ruleProtocolLabel(rule.protocol)} 规则`)
+      closeDeleteConfirm()
+      return
+    }
+
+    notify.warning('删除端口规则失败', res.data.msg)
+  } catch (error) {
+    notify.error('删除端口规则失败', parse422Errors(error).join('\n'))
+  } finally {
+    isDeletingRule.value = false
+    hideLoading()
+  }
+}
+
 async function refreshRules() {
   try {
     showLoading()
@@ -295,6 +387,7 @@ onMounted(() => {
   <div class="firewall-page">
     <header class="page-header">
       <div>
+        <p class="eyebrow">Network Security</p>
         <h1 class="page-title">防火墙</h1>
         <p class="page-subtitle">系统防火墙规则与 SSH 服务集中管理</p>
       </div>
@@ -329,21 +422,28 @@ onMounted(() => {
               <tr>
                 <th>端口</th>
                 <th>协议</th>
+                <th>IP 版本</th>
                 <th>来源 IP</th>
                 <th>目标 IP</th>
                 <th>优先级</th>
                 <th>动作</th>
+                <th class="actions-col">操作</th>
               </tr>
               </thead>
               <tbody>
               <tr v-if="rules.length === 0">
-                <td class="empty-cell" colspan="6">暂无规则</td>
+                <td class="empty-cell" colspan="8">暂无规则</td>
               </tr>
               <tr v-for="rule in rules" :key="rule.id">
                 <td>{{ rule.port }}</td>
                 <td>
                     <span class="pill" :class="rule.protocol === 1 ? 'pill-info' : 'pill-warning'">
                       {{ ruleProtocolLabel(rule.protocol) }}
+                    </span>
+                </td>
+                <td>
+                    <span class="pill pill-neutral">
+                      {{ ruleIpVersionLabel(rule.ipVersion) }}
                     </span>
                 </td>
                 <td class="mono">{{ rule.sourceIp }}</td>
@@ -353,6 +453,9 @@ onMounted(() => {
                     <span class="pill" :class="rule.action === 1 ? 'pill-success' : 'pill-danger'">
                       {{ ruleActionLabel(rule.action) }}
                     </span>
+                </td>
+                <td class="actions-col">
+                  <button class="mini-btn danger" :disabled="isDeletingRule" @click.stop="openDeleteConfirm(rule)">删除</button>
                 </td>
               </tr>
               </tbody>
@@ -380,13 +483,29 @@ onMounted(() => {
             </label>
 
             <label class="field">
+              <span>IP 版本</span>
+              <select v-model.number="ruleForm.ipVersion" @change="onRuleIpVersionChange">
+                <option :value="4">IPv4</option>
+                <option :value="6">IPv6</option>
+              </select>
+            </label>
+
+            <label class="field">
               <span>来源 IP</span>
-              <input v-model="ruleForm.sourceIp" type="text" placeholder="例如 0.0.0.0/0">
+              <input
+                v-model="ruleForm.sourceIp"
+                type="text"
+                :placeholder="ruleForm.ipVersion === 6 ? '例如 ::/0' : '例如 0.0.0.0/0'"
+              >
             </label>
 
             <label class="field">
               <span>目标 IP</span>
-              <input v-model="ruleForm.destinationIp" type="text" placeholder="例如 0.0.0.0/0">
+              <input
+                v-model="ruleForm.destinationIp"
+                type="text"
+                :placeholder="ruleForm.ipVersion === 6 ? '例如 ::/0' : '例如 0.0.0.0/0'"
+              >
             </label>
 
             <label class="field">
@@ -500,7 +619,20 @@ onMounted(() => {
         <div class="card rule-card">
           <div class="card-head">
             <h3>SSH 登录日志</h3>
-            <button class="secondary-btn" @click="refreshSshLogs">刷新日志</button>
+            <div class="toolbar-actions">
+              <label class="page-size-control">
+                <span>每页</span>
+                <select :value="sshLogsPageSize" @change="updateSshLogsPageSize(Number(($event.target as HTMLSelectElement).value))">
+                  <option :value="10">10</option>
+                  <option :value="20">20</option>
+                  <option :value="50">50</option>
+                </select>
+              </label>
+              <button class="secondary-btn" :disabled="sshLogsPage <= 1" @click="prevSshLogsPage">上一页</button>
+              <span class="page-text">第 {{ sshLogsPage }} / {{ sshLogsTotalPages }} 页</span>
+              <button class="secondary-btn" :disabled="sshLogsPage >= sshLogsTotalPages" @click="nextSshLogsPage">下一页</button>
+              <button class="secondary-btn" @click="refreshSshLogs">刷新日志</button>
+            </div>
           </div>
 
           <div class="rule-table-wrap">
@@ -519,7 +651,7 @@ onMounted(() => {
               <tr v-if="sshLogs.length === 0">
                 <td class="empty-cell" colspan="6">暂无 SSH 日志</td>
               </tr>
-              <tr v-for="(log, index) in sshLogs" :key="`${log.timestamp}-${log.user}-${index}`">
+              <tr v-for="(log, index) in paginatedSshLogs" :key="`${log.timestamp}-${log.user}-${index}`">
                 <td class="mono">{{ log.timestamp }}</td>
                 <td>{{ log.user || '-' }}</td>
                 <td class="mono">{{ log.sourceIp || '-' }}</td>
@@ -538,6 +670,29 @@ onMounted(() => {
       </div>
     </section>
   </div>
+
+  <Teleport to="body">
+    <Transition name="dialog">
+      <div v-if="deleteConfirm.visible" class="dialog-overlay" @click.self="closeDeleteConfirm">
+        <div class="dialog-card">
+          <div class="dialog-head">
+            <h3>删除端口规则</h3>
+            <p>
+              确定要删除端口 <strong>{{ deleteConfirm.rule?.port }}</strong> / {{ ruleProtocolLabel(deleteConfirm.rule?.protocol ?? 1) }}
+              的规则吗？此操作不可恢复。
+            </p>
+          </div>
+
+          <div class="dialog-actions">
+            <button class="secondary-btn" :disabled="isDeletingRule" @click="closeDeleteConfirm">取消</button>
+            <button class="danger-btn" :disabled="isDeletingRule" @click="onDeleteRule">
+              {{ isDeletingRule ? '删除中...' : '确认删除' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -555,17 +710,28 @@ onMounted(() => {
   margin-bottom: 20px;
 }
 
-.page-title {
-  font-size: 24px;
+.eyebrow {
+  font-size: 11px;
   font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-primary);
+}
+
+.page-title {
+  margin-top: 6px;
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.05em;
   color: var(--color-text);
-  letter-spacing: -0.5px;
 }
 
 .page-subtitle {
-  margin-top: 6px;
-  font-size: 13px;
+  margin-top: 8px;
+  font-size: 14px;
+  line-height: 1.7;
   color: var(--color-text-secondary);
+  max-width: 700px;
 }
 
 .section-wrap {
@@ -645,6 +811,8 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
   margin-bottom: 12px;
 }
 
@@ -688,6 +856,42 @@ onMounted(() => {
   padding: 22px 10px;
 }
 
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.page-size-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.page-size-control select {
+  min-width: 72px;
+  border: 1px solid var(--color-border-solid);
+  border-radius: 10px;
+  background: var(--color-bg-surface);
+  color: var(--color-text);
+  padding: 7px 10px;
+  font-size: 13px;
+  outline: none;
+}
+
+.page-size-control select:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-ghost);
+}
+
+.page-text {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
 .mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
@@ -713,6 +917,11 @@ onMounted(() => {
 .pill-success {
   color: var(--color-success);
   background: var(--color-success-bg);
+}
+
+.pill-neutral {
+  color: var(--color-text-secondary);
+  background: var(--color-bg-inset);
 }
 
 .pill-danger {
@@ -811,10 +1020,113 @@ onMounted(() => {
 }
 
 .primary-btn:disabled,
-.secondary-btn:disabled {
+.secondary-btn:disabled,
+.danger-btn:disabled,
+.mini-btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
   transform: none;
+}
+
+.actions-col {
+  width: 80px;
+}
+
+.mini-btn {
+  border: none;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.mini-btn.danger {
+  color: var(--color-danger);
+  background: var(--color-danger-bg);
+}
+
+.mini-btn.danger:hover {
+  transform: translateY(-1px);
+}
+
+.danger-btn {
+  border: 1px solid rgba(239, 68, 68, 0.18);
+  border-radius: 10px;
+  height: 36px;
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #fff;
+  background: linear-gradient(120deg, #dc2626, #ef4444);
+  box-shadow: 0 6px 18px -8px rgba(239, 68, 68, 0.45);
+}
+
+.danger-btn:hover {
+  transform: translateY(-1px);
+}
+
+.dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.42);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 260;
+}
+
+.dialog-card {
+  width: min(420px, 100%);
+  border-radius: 24px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-surface);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+.dialog-head {
+  padding: 20px 22px 16px;
+}
+
+.dialog-head h3 {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.dialog-head p {
+  margin-top: 10px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--color-text-secondary);
+}
+
+.dialog-head p strong {
+  color: var(--color-text);
+  font-weight: 700;
+}
+
+.dialog-actions {
+  padding: 18px 22px 22px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.dialog-enter-active,
+.dialog-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.dialog-enter-from,
+.dialog-leave-to {
+  opacity: 0;
 }
 
 @media (max-width: 1280px) {

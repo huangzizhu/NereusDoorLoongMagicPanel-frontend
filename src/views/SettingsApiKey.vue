@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import type { ApiKeyItem, ApiKeyProvider, ApiKeyCreateRequest, ApiKeyUpdateRequest } from '../types/config'
-import { getApiKeyList, createApiKey, updateApiKey, deleteApiKey, checkApiKey } from '../api/config'
+import { getApiKeyList, createApiKey, updateApiKey, deleteApiKey } from '../api/config'
 import { useNotification } from '../composables/useNotification'
 import { parse422Errors } from '../utils/errorParser'
 
@@ -23,11 +23,8 @@ const filterKeyword = ref('')
 const showAddModal = ref(false)
 const showEditModal = ref(false)
 const showDeleteConfirm = ref(false)
-const showKeyResult = ref(false)
-const createdMaskedKey = ref('')
 const deletingItem = ref<ApiKeyItem | null>(null)
 const editingItem = ref<ApiKeyItem | null>(null)
-const checkingId = ref<number | null>(null)
 
 const addForm = ref<{
   name: string
@@ -233,10 +230,19 @@ async function handleAdd() {
     const res = await createApiKey(payload)
     if (res.data.code === 1) {
       showAddModal.value = false
-      createdMaskedKey.value = res.data.data.maskedKey
-      showKeyResult.value = true
-      notification.info('创建成功', 'API Key凭证已成功创建')
+      notification.info('凭证已创建', '正在进入模型添加页面')
       await fetchList()
+      await router.push({
+        name: 'SettingsApiKeyModels',
+        params: { credentialId: res.data.data.credentialId },
+        query: {
+          name: res.data.data.name,
+          provider: res.data.data.provider,
+          baseUrl: res.data.data.baseUrl || '',
+          active: String(res.data.data.isActive),
+          maskedKey: res.data.data.maskedKey,
+        },
+      })
     } else {
       notification.error('创建失败', res.data.msg || '请稍后重试')
     }
@@ -318,38 +324,6 @@ async function handleDelete() {
   }
 }
 
-async function handleCheck(item: ApiKeyItem) {
-  checkingId.value = item.credentialId
-  try {
-    const res = await checkApiKey(item.credentialId)
-    if (res.data.code === 1) {
-      notification.info('验证通过', `凭证「${item.name}」有效`)
-    } else {
-      notification.warning('验证失败', res.data.msg || `凭证「${item.name}」无效`)
-    }
-  } catch (e) {
-    const msgs = parse422Errors(e)
-    notification.error('验证失败', msgs.join('; '))
-  } finally {
-    checkingId.value = null
-  }
-}
-
-function handleCopyKey() {
-  if (createdMaskedKey.value) {
-    navigator.clipboard.writeText(createdMaskedKey.value).then(() => {
-      notification.info('复制成功', '已复制Masked Key到剪贴板')
-    }).catch(() => {
-      notification.error('复制失败', '请手动复制')
-    })
-  }
-}
-
-function closeKeyResult() {
-  showKeyResult.value = false
-  createdMaskedKey.value = ''
-}
-
 function resetFilters() {
   filterProvider.value = ''
   filterActive.value = ''
@@ -360,6 +334,20 @@ function goBack() {
   router.push('/settings')
 }
 
+function openModelManager(item: ApiKeyItem) {
+  router.push({
+    name: 'SettingsApiKeyModels',
+    params: { credentialId: item.credentialId },
+    query: {
+      name: item.name,
+      provider: item.provider,
+      baseUrl: item.baseUrl || '',
+      active: String(item.isActive),
+      maskedKey: item.maskedKey,
+    },
+  })
+}
+
 onMounted(() => {
   fetchList()
 })
@@ -367,12 +355,13 @@ onMounted(() => {
 
 <template>
   <div class="apikey-page">
-    <div class="page-header">
+    <header class="page-header">
       <div class="header-left">
         <button class="back-btn" @click="goBack" title="返回设置">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
         </button>
         <div>
+          <p class="eyebrow">Preferences</p>
           <h1 class="page-title">API Key 凭证</h1>
           <span class="page-subtitle">管理 AI 服务商的 API Key 配置</span>
         </div>
@@ -383,7 +372,7 @@ onMounted(() => {
           新增凭证
         </button>
       </div>
-    </div>
+    </header>
 
     <div class="filter-bar">
       <div class="filter-group">
@@ -506,14 +495,8 @@ onMounted(() => {
               <td class="cell-time">{{ formatTime(item.createTime) }}</td>
               <td>
                 <div class="action-group">
-                  <button
-                    class="btn btn-icon"
-                    title="验证有效性"
-                    :disabled="checkingId === item.credentialId"
-                    @click="handleCheck(item)"
-                  >
-                    <svg v-if="checkingId === item.credentialId" class="spin-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-                    <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                  <button class="btn btn-icon" title="模型管理" @click="openModelManager(item)">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="7.5 4.21 12 6.81 16.5 4.21"/><polyline points="7.5 19.79 7.5 14.6 3 12"/><polyline points="21 12 16.5 14.6 16.5 19.79"/><polyline points="12 22.08 12 17"/><polyline points="12 17 16.5 14.6"/><polyline points="12 17 7.5 14.6"/><polyline points="12 6.81 12 12"/></svg>
                   </button>
                   <button class="btn btn-icon" title="编辑" @click="openEditModal(item)">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -526,19 +509,6 @@ onMounted(() => {
             </tr>
           </tbody>
         </table>
-      </div>
-    </div>
-
-    <div class="todo-section">
-      <div class="todo-header">
-        <div class="todo-title-area">
-          <h3 class="todo-title">凭证有效性验证</h3>
-          <span class="dev-badge">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-            开发中
-          </span>
-        </div>
-        <p class="todo-desc">此功能对应接口 <code>GET /config/apikey/check</code>，接口尚未开发完成。当前列表中的验证按钮已实现调用框架，但后端接口可能返回异常。</p>
       </div>
     </div>
 
@@ -698,40 +668,6 @@ onMounted(() => {
         </div>
       </Transition>
 
-      <Transition name="modal">
-        <div v-if="showKeyResult" class="modal-overlay" @click.self="closeKeyResult">
-          <div class="modal-container modal-sm">
-            <div class="modal-header">
-              <h2 class="modal-title">凭证创建成功</h2>
-              <button class="modal-close" @click="closeKeyResult">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              </button>
-            </div>
-            <div class="modal-body">
-              <div class="key-result">
-                <div class="key-result-icon">
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                </div>
-                <p class="key-result-text">API Key 凭证已成功创建！</p>
-                <div class="key-result-field">
-                  <label>Masked Key</label>
-                  <div class="key-copy-row">
-                    <code class="key-display">{{ createdMaskedKey }}</code>
-                    <button class="btn btn-sm btn-ghost" @click="handleCopyKey" title="复制">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                      复制
-                    </button>
-                  </div>
-                </div>
-                <p class="key-result-hint">完整 API Key 仅在创建时可见，请妥善保存。关闭此窗口后将无法再次查看。</p>
-              </div>
-            </div>
-            <div class="modal-footer">
-              <button class="btn btn-primary" @click="closeKeyResult">返回列表</button>
-            </div>
-          </div>
-        </div>
-      </Transition>
     </Teleport>
   </div>
 </template>
@@ -746,10 +682,14 @@ onMounted(() => {
 .page-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
-  flex-wrap: wrap;
-  gap: 12px;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 22px;
+  margin-bottom: 20px;
+  border: 1px solid var(--color-border);
+  border-radius: 24px;
+  background: var(--color-bg-surface);
+  box-shadow: var(--shadow-sm);
 }
 
 .header-left {
@@ -779,19 +719,31 @@ onMounted(() => {
   border-color: var(--color-primary-light);
 }
 
-.page-title {
-  font-size: 24px;
+.eyebrow {
+  font-size: 11px;
   font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-primary);
+}
+
+.page-title {
+  margin-top: 6px;
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.05em;
   color: var(--color-text);
-  letter-spacing: -0.5px;
 }
 
 .page-subtitle {
-  font-size: 13px;
-  color: var(--color-text-muted);
-  display: block;
-  margin-top: 2px;
+  margin-top: 8px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--color-text-secondary);
+  max-width: 700px;
 }
+
+
 
 .btn {
   display: inline-flex;

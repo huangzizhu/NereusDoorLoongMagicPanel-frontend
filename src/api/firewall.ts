@@ -3,6 +3,8 @@ import type { ApiResponse } from '../types/user'
 import type {
   FirewallSwitchStatus,
   FirewallPortRuleCreateRequest,
+  FirewallPortRuleDeleteRequest,
+  FirewallPortRuleDeleteData,
   FirewallPortRuleListData,
   FirewallSshConfig,
   FirewallSshConfigUpdateRequest,
@@ -23,6 +25,10 @@ export function getFirewallPortRules() {
 
 export function createFirewallPortRule(data: FirewallPortRuleCreateRequest) {
   return request.post<ApiResponse<FirewallPortRuleListData>>('/firewall/port-rules', data)
+}
+
+export function deleteFirewallPortRule(data: FirewallPortRuleDeleteRequest) {
+  return request.delete<ApiResponse<FirewallPortRuleDeleteData>>('/firewall/port-rules', { data })
 }
 
 export function getSshConfig() {

@@ -53,10 +53,11 @@ onUnmounted(() => {
 
 <template>
   <div class="home-page">
-    <div class="page-header">
-      <div class="header-left">
+    <header class="page-header">
+      <div>
+        <p class="eyebrow">Dashboard</p>
         <h1 class="page-title">系统概览</h1>
-        <span class="hostname" v-if="health">{{ health.hostname }}</span>
+        <p class="page-subtitle">实时系统健康监测，包括 CPU、内存、网络、磁盘和 GPU 状态</p>
       </div>
       <div class="header-right" v-if="health">
         <div class="health-score">
@@ -73,7 +74,7 @@ onUnmounted(() => {
           {{ connected ? '已连接' : '未连接' }}
         </span>
       </div>
-    </div>
+    </header>
 
     <div v-if="!health" class="loading-state">
       <div class="loading-spinner"></div>
@@ -116,10 +117,14 @@ onUnmounted(() => {
 .page-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 28px;
-  flex-wrap: wrap;
-  gap: 12px;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 22px;
+  margin-bottom: 24px;
+  border: 1px solid var(--color-border);
+  border-radius: 24px;
+  background: var(--color-bg-surface);
+  box-shadow: var(--shadow-sm);
 }
 
 .header-left {
@@ -128,11 +133,28 @@ onUnmounted(() => {
   gap: 12px;
 }
 
-.page-title {
-  font-size: 24px;
+.eyebrow {
+  font-size: 11px;
   font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-primary);
+}
+
+.page-title {
+  margin-top: 6px;
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.05em;
   color: var(--color-text);
-  letter-spacing: -0.5px;
+}
+
+.page-subtitle {
+  margin-top: 8px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--color-text-secondary);
+  max-width: 700px;
 }
 
 .hostname {

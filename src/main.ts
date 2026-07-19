@@ -2,6 +2,7 @@ import { createApp } from 'vue'
 import App from './App.vue'
 import router from './router'
 import './assets/styles/global.css'
+import 'katex/dist/katex.min.css'
 import axios from 'axios'
 import { useTheme } from './composables/useTheme'
 

@@ -39,9 +39,57 @@ const routes: Array<RouteRecordRaw> = [
         meta: { requiresAuth: true }
     },
     {
+        path: '/terminal',
+        name: 'Terminal',
+        component: () => import('../views/Terminal.vue'),
+        meta: { requiresAuth: true }
+    },
+    {
+        path: '/docker',
+        name: 'DockerManager',
+        component: () => import('../views/DockerManager.vue'),
+        meta: { requiresAuth: true }
+    },
+    {
+        path: '/database',
+        name: 'DatabaseManager',
+        component: () => import('../views/DatabaseManager.vue'),
+        meta: { requiresAuth: true }
+    },
+    {
+        path: '/nginx',
+        name: 'NginxManager',
+        component: () => import('../views/NginxManager.vue'),
+        meta: { requiresAuth: true }
+    },
+    {
+        path: '/agent',
+        name: 'AgentChat',
+        component: () => import('../views/AgentChat.vue'),
+        meta: { requiresAuth: true }
+    },
+    {
+        path: '/scheduled-inspection',
+        name: 'ScheduledInspection',
+        component: () => import('../views/ScheduledInspection.vue'),
+        meta: { requiresAuth: true }
+    },
+    {
         path: '/settings/apikey',
         name: 'SettingsApiKey',
         component: () => import('../views/SettingsApiKey.vue'),
+        meta: { requiresAuth: true }
+    },
+    {
+        path: '/settings/apikey/:credentialId/models',
+        name: 'SettingsApiKeyModels',
+        component: () => import('../views/SettingsApiKeyModels.vue'),
+        meta: { requiresAuth: true }
+    },
+    {
+        path: '/settings/model-pricing',
+        name: 'SettingsModelPricing',
+        component: () => import('../views/SettingsModelPricing.vue'),
         meta: { requiresAuth: true }
     },
     {

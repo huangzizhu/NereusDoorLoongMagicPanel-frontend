@@ -986,6 +986,14 @@ function handleTableDragStart(item: FileItem) {
 .file-explorer {
   display: flex;
   flex-direction: column;
+  min-height: 100vh;
+  padding: 0;
+  overflow: hidden;
+}
+
+.file-explorer {
+  display: flex;
+  flex-direction: column;
   height: calc(100vh - var(--topbar-height));
   overflow: hidden;
   background: var(--color-bg);

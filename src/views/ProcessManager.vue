@@ -120,9 +120,10 @@ const isAllSelected = computed(() => {
 })
 
 const parsedPort = computed(() => {
-  const text = portInput.value.trim()
+  const text = String(portInput.value ?? '').trim()
   if (!text) return null
-  const value = Number(text)
+  if (!/^\d+$/.test(text)) return null
+  const value = Number.parseInt(text, 10)
   if (!Number.isInteger(value) || value < 1 || value > 65535) return null
   return value
 })
@@ -692,6 +693,7 @@ onUnmounted(() => {
   <div class="process-page">
     <header class="page-header">
       <div>
+        <p class="eyebrow">System</p>
         <h1 class="page-title">进程管理</h1>
         <p class="page-subtitle">实时观察进程状态，快速定位端口占用并执行安全终止</p>
       </div>
@@ -1247,19 +1249,31 @@ onUnmounted(() => {
   box-shadow: var(--shadow-sm);
 }
 
-.page-title {
-  font-size: 28px;
+.eyebrow {
+  font-size: 11px;
   font-weight: 800;
-  letter-spacing: -0.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-primary);
+}
+
+.page-title {
+  margin-top: 6px;
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.05em;
   color: var(--color-text);
-  font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif;
 }
 
 .page-subtitle {
-  margin-top: 6px;
+  margin-top: 8px;
+  font-size: 14px;
+  line-height: 1.7;
   color: var(--color-text-secondary);
-  font-size: 13px;
+  max-width: 700px;
 }
+
+
 
 .connection-group {
   display: flex;

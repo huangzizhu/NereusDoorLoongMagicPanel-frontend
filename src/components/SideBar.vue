@@ -91,7 +91,6 @@ const navSections: NavSection[] = [
   {
     label: '系统',
     items: [
-
       { path: '/settings', name: '设置', icon: svgSettings },
     ]
   },

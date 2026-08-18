@@ -15,6 +15,8 @@ export interface AgentSession {
   title: string
   mode: AgentMode
   status: AgentSessionStatus
+  /** 会话来源：manual / scheduled / inspection（调度触发的巡检会话对登录用户可见） */
+  source?: 'manual' | 'scheduled' | 'inspection' | string
   profileId: number | null
   toolSource: ToolSource
   safetyPolicy: string
@@ -29,6 +31,24 @@ export interface AgentSession {
 export interface AgentSessionListData {
   total: number
   items: AgentSession[]
+}
+
+/** GET /agent/status 返回的首页状态摘要。 */
+export interface AgentStatusItem {
+  sessionId: string
+  title: string
+  status: string
+  source: string | null
+  summary: string | null
+  lastError: string | null
+  createdAt: string
+  updatedAt: string
+  finishedAt: string | null
+}
+
+export interface AgentStatusListData {
+  total: number
+  items: AgentStatusItem[]
 }
 
 export interface AgentSessionCreateRequest {

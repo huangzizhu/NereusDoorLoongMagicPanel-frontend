@@ -500,7 +500,7 @@ onUnmounted(() => {
           </div>
         </article>
 
-        <section class="detail-grid">
+        <section class="detail-grid single-panel">
           <article class="panel-card">
             <div class="panel-title">服务信号</div>
             <div class="signal-list">
@@ -523,14 +523,6 @@ onUnmounted(() => {
             </div>
           </article>
 
-          <article class="panel-card">
-            <div class="panel-title">运维说明</div>
-            <div class="note-list">
-              <div class="note-item">MySQL 标签页下额外提供「连接测试」「数据库管理」「用户管理」三个操作面板，对应 dbv2.0 新增接口。</div>
-              <div class="note-item">非 MySQL 数据库的 `currentConnections` 与 `slowQueryCount` 可能为 `null`，页面统一按 `N/A` 呈现。</div>
-              <div class="note-item">类型切换仅在同一路由内完成，保持和 Docker 管理页一致的操作节奏。</div>
-            </div>
-          </article>
         </section>
       </section>
 
@@ -1014,6 +1006,10 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 16px;
+}
+
+.detail-grid.single-panel {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .signal-list,

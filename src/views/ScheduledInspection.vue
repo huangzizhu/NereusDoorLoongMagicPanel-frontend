@@ -6,6 +6,7 @@ import { useNotification } from '../composables/useNotification'
 import type {
   BackgroundRunStatus,
   InspectionConfig,
+  InspectionConfigUpdateRequest,
   InspectionReport,
   ScheduledTask,
   ScheduledTaskApprovalDetail,
@@ -40,6 +41,8 @@ const taskForm = reactive({
   taskDescription: '',
   approvalEnabled: false,
   allowedTools: '',
+  commandsEnabled: false,
+  allowedCommands: '',
   allowedPaths: '',
   deniedPaths: '',
   allowedPrivilegedCommands: '',
@@ -85,6 +88,16 @@ const configDialog = reactive({
   visible: false,
   intervalMinutes: 30,
   saving: false,
+  // 预授权策略编辑区
+  approvalEnabled: true,
+  allowedTools: '',
+  commandsEnabled: true,
+  allowedCommands: '',
+  allowedPaths: '',
+  deniedPaths: '',
+  allowedPrivilegedCommands: '',
+  ttlSeconds: 25200,
+  maxRuns: 100,
 })
 
 const latestStatusText = computed(() => latestReport.value ? statusLabel(latestReport.value.status) : '暂无报告')
@@ -161,7 +174,7 @@ function joinPolicyInput(value: string[] | undefined): string {
 
 function buildApprovalPolicy(): ScheduledTaskApprovalPolicy | undefined {
   if (!taskForm.approvalEnabled) return undefined
-  return {
+  const policy: ScheduledTaskApprovalPolicy = {
     allowedTools: splitPolicyInput(taskForm.allowedTools),
     allowedPaths: splitPolicyInput(taskForm.allowedPaths),
     deniedPaths: splitPolicyInput(taskForm.deniedPaths),
@@ -169,6 +182,10 @@ function buildApprovalPolicy(): ScheduledTaskApprovalPolicy | undefined {
     ttlSeconds: Number(taskForm.ttlSeconds),
     maxRuns: Number(taskForm.maxRuns),
   }
+  if (taskForm.commandsEnabled) {
+    policy.allowedCommands = splitPolicyInput(taskForm.allowedCommands)
+  }
+  return policy
 }
 
 async function loadTasks(showFullLoading = false) {
@@ -214,6 +231,8 @@ function openCreateTask() {
   taskForm.taskDescription = ''
   taskForm.approvalEnabled = false
   taskForm.allowedTools = ''
+  taskForm.commandsEnabled = false
+  taskForm.allowedCommands = ''
   taskForm.allowedPaths = ''
   taskForm.deniedPaths = ''
   taskForm.allowedPrivilegedCommands = ''
@@ -231,6 +250,8 @@ function openEditTask(task: ScheduledTask) {
   taskForm.taskDescription = task.taskDescription
   taskForm.approvalEnabled = Boolean(policy)
   taskForm.allowedTools = joinPolicyInput(policy?.allowedTools)
+  taskForm.commandsEnabled = Array.isArray(policy?.allowedCommands)
+  taskForm.allowedCommands = joinPolicyInput(policy?.allowedCommands)
   taskForm.allowedPaths = joinPolicyInput(policy?.allowedPaths)
   taskForm.deniedPaths = joinPolicyInput(policy?.deniedPaths)
   taskForm.allowedPrivilegedCommands = joinPolicyInput(policy?.allowedPrivilegedCommands)
@@ -399,6 +420,41 @@ function formatPolicyList(value: string[] | undefined): string {
   return value.join(', ')
 }
 
+/**
+ * 从报告/运行记录文本中提取授权请求审批码（authorization.requested 事件
+ * 会以「[授权请求已提交] ... 审批命令: sudo nereus approve CODE」形式
+ * 出现在 agent 输出中，随 fullReport / resultSummary 返回）。
+ */
+const APPROVAL_CODE_RE = /sudo\s+nereus\s+approve\s+([A-Z0-9-]+)/g
+
+function extractApprovalCodes(text: string | null | undefined): string[] {
+  if (!text) return []
+  const seen = new Set<string>()
+  const codes: string[] = []
+  const re = new RegExp(APPROVAL_CODE_RE.source, 'g')
+  let match: RegExpExecArray | null
+  while ((match = re.exec(text)) !== null) {
+    const code = match[1]
+    if (!seen.has(code)) {
+      seen.add(code)
+      codes.push(code)
+    }
+  }
+  return codes
+}
+
+/** 当前选中巡检报告中的待审批授权请求（审批码去重） */
+const reportApprovalCodes = computed(() => {
+  const report = selectedReport.value
+  if (!report) return []
+  return extractApprovalCodes([report.fullReport, report.summary, report.errorMessage].join('\n'))
+})
+
+/** 定时任务某次运行记录中的待审批授权请求 */
+function runApprovalCodes(run: ScheduledTaskRun): string[] {
+  return extractApprovalCodes([run.resultSummary, run.errorMessage].join('\n'))
+}
+
 async function openApprovalDialog(task: ScheduledTask) {
   approvalDialog.visible = true
   approvalDialog.task = task
@@ -556,7 +612,18 @@ async function triggerInspectionRun() {
 }
 
 function openConfigDialog() {
+  const policy = inspectionConfig.value?.approvalPolicy
   configDialog.intervalMinutes = inspectionConfig.value?.inspectionIntervalMinutes || 30
+  configDialog.approvalEnabled = Boolean(policy)
+  configDialog.allowedTools = joinPolicyInput(policy?.allowedTools)
+  // 数组存在即视为显式配置（空数组 = 拒绝一切命令）
+  configDialog.commandsEnabled = Array.isArray(policy?.allowedCommands)
+  configDialog.allowedCommands = joinPolicyInput(policy?.allowedCommands)
+  configDialog.allowedPaths = joinPolicyInput(policy?.allowedPaths)
+  configDialog.deniedPaths = joinPolicyInput(policy?.deniedPaths)
+  configDialog.allowedPrivilegedCommands = joinPolicyInput(policy?.allowedPrivilegedCommands)
+  configDialog.ttlSeconds = policy?.ttlSeconds || 25200
+  configDialog.maxRuns = policy?.maxRuns || 100
   configDialog.visible = true
 }
 
@@ -571,17 +638,43 @@ async function saveInspectionConfig() {
     notify.warning('配置校验失败', '巡检间隔需要在 1 到 1440 分钟之间')
     return
   }
+  if (configDialog.approvalEnabled) {
+    if (!Number.isInteger(Number(configDialog.ttlSeconds)) || Number(configDialog.ttlSeconds) <= 0) {
+      notify.warning('配置校验失败', '审批码有效期需要大于 0 秒')
+      return
+    }
+    if (!Number.isInteger(Number(configDialog.maxRuns)) || Number(configDialog.maxRuns) <= 0) {
+      notify.warning('配置校验失败', '最大授权次数需要大于 0')
+      return
+    }
+  }
 
   configDialog.saving = true
   try {
-    const res = await scheduledApi.updateInspectionConfig({ intervalMinutes: interval })
+    const payload: InspectionConfigUpdateRequest = { intervalMinutes: interval }
+    if (configDialog.approvalEnabled) {
+      const policy: ScheduledTaskApprovalPolicy = {
+        allowedTools: splitPolicyInput(configDialog.allowedTools),
+        allowedPaths: splitPolicyInput(configDialog.allowedPaths),
+        deniedPaths: splitPolicyInput(configDialog.deniedPaths),
+        allowedPrivilegedCommands: splitPolicyInput(configDialog.allowedPrivilegedCommands),
+        ttlSeconds: Number(configDialog.ttlSeconds),
+        maxRuns: Number(configDialog.maxRuns),
+      }
+      if (configDialog.commandsEnabled) {
+        policy.allowedCommands = splitPolicyInput(configDialog.allowedCommands)
+      }
+      payload.approvalPolicy = policy
+    }
+
+    const res = await scheduledApi.updateInspectionConfig(payload)
     if (res.data.code !== 1) {
       notify.warning('配置更新失败', res.data.msg)
       return
     }
     inspectionConfig.value = res.data.data
     configDialog.visible = false
-    notify.info('巡检间隔已更新')
+    notify.info('巡检配置已更新')
   } catch (error) {
     notify.error('配置更新失败', normalizeError(error, '请稍后重试'))
   } finally {
@@ -806,6 +899,17 @@ onMounted(async () => {
                 </div>
               </div>
 
+              <div v-if="reportApprovalCodes.length" class="approval-hint-card">
+                <div class="approval-hint-head">
+                  <strong>存在待审批的授权请求</strong>
+                  <span>工具不在预授权范围内，本次已跳过未执行；管理员批准后后续运行将自动放行。</span>
+                </div>
+                <div v-for="code in reportApprovalCodes" :key="code" class="approval-command-inline">
+                  <code>{{ approvalCommand(code) }}</code>
+                  <button class="link-btn" @click="copyText(approvalCommand(code))">复制命令</button>
+                </div>
+              </div>
+
               <div class="findings-list">
                 <div v-if="!selectedReport.findings?.length" class="muted-copy">本次巡检没有结构化发现。</div>
                 <article v-for="finding in selectedReport.findings" :key="`${finding.level}-${finding.title}-${finding.detail}`" class="finding-item" :class="findingClass(finding.level)">
@@ -894,6 +998,19 @@ onMounted(async () => {
                   <span>允许工具</span>
                   <textarea v-model="taskForm.allowedTools" rows="4" placeholder="deletePath&#10;searchFiles&#10;runPrivileged"></textarea>
                 </label>
+                <div class="field">
+                  <span>命令前缀白名单</span>
+                  <label class="inline-toggle">
+                    <input v-model="taskForm.commandsEnabled" type="checkbox" />
+                    <span class="toggle-control"></span>
+                    <span class="toggle-copy">
+                      <strong>启用命令白名单</strong>
+                      <small>对 runCommand / runShellCommand 生效，实际命令以条目为前缀即放行</small>
+                    </span>
+                  </label>
+                  <textarea v-model="taskForm.allowedCommands" rows="4" placeholder="df -h&#10;free -h&#10;systemctl status" :disabled="!taskForm.commandsEnabled"></textarea>
+                  <small class="field-hint">空列表 = 拒绝一切命令；关闭开关 = 仅工具名 + 路径匹配（旧行为）</small>
+                </div>
                 <label class="field">
                   <span>允许路径</span>
                   <textarea v-model="taskForm.allowedPaths" rows="4" placeholder="/tmp/report&#10;/var/log/nginx"></textarea>
@@ -964,6 +1081,13 @@ onMounted(async () => {
                     <span>{{ formatDate(run.startedAt) }} - {{ formatDate(run.finishedAt) }}</span>
                   </div>
                   <p>{{ run.resultSummary || run.errorMessage || '无执行摘要' }}</p>
+                  <div v-if="runApprovalCodes(run).length" class="run-approval-row">
+                    <span class="approval-badge">待审批授权</span>
+                    <template v-for="code in runApprovalCodes(run)" :key="code">
+                      <code>{{ approvalCommand(code) }}</code>
+                      <button class="link-btn" @click="copyText(approvalCommand(code))">复制</button>
+                    </template>
+                  </div>
                   <div class="run-foot">
                     <span>{{ formatTokens(run) }}</span>
                     <button class="link-btn" :disabled="!run.sessionId" @click="openAgentSession(run.sessionId)">打开 Agent 会话</button>
@@ -1064,10 +1188,10 @@ onMounted(async () => {
     <Teleport to="body">
       <Transition name="dialog">
         <div v-if="configDialog.visible" class="dialog-overlay" @click.self="closeConfigDialog">
-          <div class="dialog-card">
+          <div class="dialog-card wide">
             <div class="dialog-head">
               <h3>巡检配置</h3>
-              <p>自动巡检间隔范围为 1 到 1440 分钟。</p>
+              <p>自动巡检间隔范围为 1 到 1440 分钟；预授权策略决定无人值守巡检可自动执行的工具与命令。</p>
             </div>
             <div class="dialog-body">
               <label class="field">
@@ -1077,6 +1201,56 @@ onMounted(async () => {
               <div class="config-readonly">
                 <span>巡检文档</span>
                 <strong>{{ inspectionConfig?.inspectionDocPath || '--' }}</strong>
+              </div>
+
+              <label class="approval-enable">
+                <input v-model="configDialog.approvalEnabled" type="checkbox" />
+                <span class="toggle-control"></span>
+                <span class="toggle-copy">
+                  <strong>自定义预授权策略</strong>
+                  <small>关闭时保持后端当前策略不变；默认基线为只读诊断命令（df / free / systemctl status 等）</small>
+                </span>
+              </label>
+
+              <div v-if="configDialog.approvalEnabled" class="policy-grid">
+                <label class="field">
+                  <span>允许工具</span>
+                  <textarea v-model="configDialog.allowedTools" rows="4" placeholder="runCommand&#10;runShellCommand"></textarea>
+                </label>
+                <div class="field">
+                  <span>命令前缀白名单</span>
+                  <label class="inline-toggle">
+                    <input v-model="configDialog.commandsEnabled" type="checkbox" />
+                    <span class="toggle-control"></span>
+                    <span class="toggle-copy">
+                      <strong>启用命令白名单</strong>
+                      <small>对 runCommand / runShellCommand 生效，实际命令以条目为前缀即放行（如 df -h 可放行 df -h /）</small>
+                    </span>
+                  </label>
+                  <textarea v-model="configDialog.allowedCommands" rows="5" placeholder="uname -a&#10;df -h&#10;free -h&#10;systemctl status&#10;docker ps" :disabled="!configDialog.commandsEnabled"></textarea>
+                  <small class="field-hint">空列表 = 拒绝一切命令；关闭开关 = 仅工具名 + 路径匹配（旧行为）。runShellCommand 预授权放行时拒绝 ; & | 反引号 $ () 换行等控制字符。</small>
+                </div>
+                <label class="field">
+                  <span>允许路径</span>
+                  <textarea v-model="configDialog.allowedPaths" rows="4" placeholder="/tmp/report&#10;/var/log/nginx"></textarea>
+                </label>
+                <label class="field">
+                  <span>禁止路径</span>
+                  <textarea v-model="configDialog.deniedPaths" rows="4" placeholder="/tmp/report/secret"></textarea>
+                </label>
+                <label class="field">
+                  <span>允许特权命令</span>
+                  <textarea v-model="configDialog.allowedPrivilegedCommands" rows="4" placeholder="mkdir&#10;systemctl"></textarea>
+                </label>
+                <label class="field">
+                  <span>审批码有效期秒</span>
+                  <input v-model.number="configDialog.ttlSeconds" min="60" max="2592000" type="number" />
+                  <small class="field-hint">默认 25200 秒（7 小时），范围 60 ~ 2592000（30 天）</small>
+                </label>
+                <label class="field">
+                  <span>最大授权次数</span>
+                  <input v-model.number="configDialog.maxRuns" min="1" max="100000" type="number" />
+                </label>
               </div>
             </div>
             <div class="dialog-actions">
@@ -1459,6 +1633,47 @@ onMounted(async () => {
   box-shadow: 0 0 0 3px var(--color-primary-ghost);
 }
 
+.field textarea:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.field-hint {
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+.inline-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border-solid);
+  border-radius: 12px;
+  background: var(--color-bg);
+}
+
+.inline-toggle input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.inline-toggle input:checked + .toggle-control {
+  background: var(--color-primary-ghost);
+  border-color: var(--color-primary);
+}
+
+.inline-toggle input:checked + .toggle-control::after {
+  transform: translateX(16px);
+  background: var(--color-primary);
+}
+
 .policy-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1545,6 +1760,62 @@ onMounted(async () => {
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   font-size: 12px;
   word-break: break-all;
+}
+
+.approval-hint-card {
+  margin-top: 14px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid var(--color-warning-border, var(--color-border));
+  background: var(--color-warning-bg);
+}
+
+.approval-hint-head {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.approval-hint-head strong {
+  color: var(--color-warning);
+  font-size: 14px;
+}
+
+.approval-hint-head span {
+  color: var(--color-text-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.run-approval-row {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.run-approval-row code {
+  padding: 5px 8px;
+  border-radius: 8px;
+  background: var(--color-info-bg);
+  color: var(--color-info);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.approval-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--color-warning);
+  background: var(--color-warning-bg);
+  white-space: nowrap;
 }
 
 .mono {

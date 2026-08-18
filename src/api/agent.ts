@@ -3,6 +3,7 @@ import type { ApiResponse } from '../types/config'
 import type {
   AgentSession,
   AgentSessionListData,
+  AgentStatusListData,
   AgentSessionCreateRequest,
   AgentMessageListData,
   TraceListData,
@@ -20,6 +21,18 @@ import type {
 
 export function getAgentSessions(params?: { page?: number; pageSize?: number; status?: string; keyword?: string }) {
   return request.get<ApiResponse<AgentSessionListData>>('/agent/sessions', { params })
+}
+
+/** 首页 Agent 状态概览，服务端限制 limit 为 1-20，默认 5。 */
+export function getAgentStatus(limit = 5) {
+  const normalizedLimit = Number.isFinite(limit)
+    ? Math.min(20, Math.max(1, Math.trunc(limit)))
+    : 5
+
+  return request.get<ApiResponse<AgentStatusListData>>('/agent/status', {
+    params: { limit: normalizedLimit },
+    timeout: 15000,
+  })
 }
 
 export function createAgentSession(data: AgentSessionCreateRequest) {

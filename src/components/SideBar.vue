@@ -25,16 +25,6 @@
         </div>
       </nav>
 
-      <div class="sidebar-footer" v-show="!isCollapsed">
-        <div class="footer-hint">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10" />
-            <line x1="12" y1="16" x2="12" y2="12" />
-            <line x1="12" y1="8" x2="12.01" y2="8" />
-          </svg>
-          <span>在 navSections 中添加页面</span>
-        </div>
-      </div>
     </div>
   </aside>
 </template>
@@ -65,6 +55,7 @@ const svgDatabase = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none"
 const svgNginx = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 6.5v11L12 22l8-4.5v-11L12 2Z"/><path d="M9 16V8l6 8V8"/></svg>'
 const svgBot = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8" y2="16"/><line x1="16" y1="16" x2="16" y2="16"/></svg>'
 const svgSchedule = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M8 2v4"/><path d="M16 2v4"/><path d="M3 10h18"/><path d="M12 14v3l2 1"/></svg>'
+const svgOpsBook = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>'
 const svgSettings = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>'
 
 const navSections: NavSection[] = [
@@ -83,9 +74,15 @@ const navSections: NavSection[] = [
       { path: '/terminal', name: '终端', icon: svgTerminal },
       { path: '/docker', name: 'Docker 管理', icon: svgDocker },
       { path: '/database', name: '数据库管理', icon: svgDatabase },
-      { path: '/agent', name: 'Agent 对话', icon: svgBot },
       { path: '/nginx', name: 'Nginx 管理', icon: svgNginx },
+    ]
+  },
+  {
+    label: 'AI 功能',
+    items: [
+      { path: '/agent', name: 'Agent 对话', icon: svgBot },
       { path: '/scheduled-inspection', name: '任务巡检', icon: svgSchedule },
+      { path: '/ops-experience', name: '运维经验库', icon: svgOpsBook },
     ]
   },
   {
@@ -265,29 +262,12 @@ const navSections: NavSection[] = [
   opacity: 0;
 }
 
-.sidebar-footer {
-  flex-shrink: 0;
-  padding-top: 12px;
-  border-top: 1px solid var(--color-divider);
-}
-
-.footer-hint {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  color: var(--color-text-faint);
-  padding: 8px 12px;
-  line-height: 1.4;
-}
-
 @media (max-width: 768px) {
   .sidebar {
     width: var(--sidebar-collapsed-width);
   }
   .section-label,
-  .nav-text,
-  .sidebar-footer {
+  .nav-text {
     display: none;
   }
   .collapse-btn {

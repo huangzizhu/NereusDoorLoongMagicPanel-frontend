@@ -227,8 +227,22 @@ const activeProfile = computed(() => profiles.value.find(p => p.profileId === ac
 const defaultProfile = computed(() => profiles.value.find(p => p.isDefault) || profiles.value[0] || null)
 
 const sessionListSorted = computed(() =>
-  [...sessions.value].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+  [...sessions.value]
+    .filter((s) => sourceFilter.value === 'all' || (s.source || 'manual') === sourceFilter.value)
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
 )
+
+/** 会话来源筛选：all / manual / scheduled / inspection */
+const sourceFilter = ref<'all' | 'manual' | 'scheduled' | 'inspection'>('all')
+
+function formatSessionSource(source: string | undefined): { label: string; cls: string } {
+  // 仅 scheduled / inspection 显示来源标签；manual 与未知来源返回空 label（不显示标签）
+  const map: Record<string, { label: string; cls: string }> = {
+    scheduled: { label: '定时任务', cls: 'source-scheduled' },
+    inspection: { label: '巡检', cls: 'source-inspection' },
+  }
+  return map[source || 'manual'] || { label: '', cls: '' }
+}
 
 const wsStatusText = computed(() => {
   if (wsConnected.value) return '已连接'
@@ -912,11 +926,11 @@ function handleWsEvent(event: WsServerEvent) {
       break
 
     case 'session.updated':
-      // 会话信息变更
+      // 会话信息变更（spread 合并：后端推送可能不含 source 等字段，避免覆盖丢失）
       if (event.data.session) {
         const idx = sessions.value.findIndex(s => s.sessionId === event.data.session.sessionId)
         if (idx >= 0) {
-          sessions.value[idx] = event.data.session
+          sessions.value[idx] = { ...sessions.value[idx], ...event.data.session }
         }
       }
       break
@@ -1680,6 +1694,16 @@ watch(() => route.query.sessionId, async () => {
         </button>
       </div>
 
+      <div v-show="!sidebarCollapsed" class="session-source-filter">
+        <button
+          v-for="opt in [{ v: 'all', label: '全部' }, { v: 'manual', label: '手动' }, { v: 'scheduled', label: '定时任务' }, { v: 'inspection', label: '巡检' }]"
+          :key="opt.v"
+          class="source-filter-btn"
+          :class="{ active: sourceFilter === opt.v }"
+          @click="sourceFilter = opt.v as typeof sourceFilter"
+        >{{ opt.label }}</button>
+      </div>
+
       <div class="session-list">
         <div v-if="sessionsLoading" class="list-loading">加载中…</div>
         <div v-else-if="sessions.length === 0" class="list-empty">
@@ -1703,7 +1727,10 @@ watch(() => route.query.sessionId, async () => {
                 {{ s.title }}
                 <span v-if="formatSessionStatus(s.status).unread" class="unread-badge" title="有未查看的结果">●</span>
               </div>
-              <div class="session-meta">{{ formatSessionTime(s.updatedAt) }} · {{ formatSessionStatus(s.status).label }}</div>
+              <div class="session-meta">
+                <span v-if="formatSessionSource(s.source).label" class="source-badge" :class="formatSessionSource(s.source).cls">{{ formatSessionSource(s.source).label }}</span>
+                <span>{{ formatSessionTime(s.updatedAt) }} · {{ formatSessionStatus(s.status).label }}</span>
+              </div>
             </div>
           </div>
           <button
@@ -3001,6 +3028,36 @@ watch(() => route.query.sessionId, async () => {
   gap: 2px;
 }
 
+.session-source-filter {
+  display: flex;
+  gap: 6px;
+  padding: 8px 10px 2px;
+  flex-wrap: wrap;
+}
+
+.source-filter-btn {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border-solid);
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.source-filter-btn:hover {
+  color: var(--color-text);
+  border-color: var(--color-primary);
+}
+
+.source-filter-btn.active {
+  background: var(--color-primary-ghost);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
 .list-loading,
 .list-empty {
   padding: 32px 16px;
@@ -3084,6 +3141,27 @@ watch(() => route.query.sessionId, async () => {
   margin-left: 4px;
   vertical-align: middle;
   animation: unread-pulse 2s ease-in-out infinite;
+}
+
+.source-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  vertical-align: 1px;
+  white-space: nowrap;
+}
+
+.source-badge.source-scheduled {
+  color: var(--color-info);
+  background: var(--color-info-bg);
+}
+
+.source-badge.source-inspection {
+  color: var(--color-warning);
+  background: var(--color-warning-bg);
 }
 
 @keyframes unread-pulse {

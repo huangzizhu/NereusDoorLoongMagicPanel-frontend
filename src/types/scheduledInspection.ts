@@ -52,6 +52,8 @@ export interface ScheduledTaskUpdateRequest {
 
 export interface ScheduledTaskApprovalPolicy {
   allowedTools?: string[]
+  /** 命令前缀白名单：显式配置时对 runCommand/runShellCommand 生效（空列表 = 拒绝一切命令，未配置 = 旧行为） */
+  allowedCommands?: string[]
   allowedPaths?: string[]
   deniedPaths?: string[]
   allowedPrivilegedCommands?: string[]
@@ -116,8 +118,13 @@ export interface InspectionConfig {
   inspectionDocPath: string
   timezone: string
   schedulerStarted: boolean
+  /** 巡检预授权策略（默认基线 + 可配置） */
+  approvalPolicy?: ScheduledTaskApprovalPolicy | null
 }
 
 export interface InspectionConfigUpdateRequest {
-  intervalMinutes: number
+  /** 可选：不传则保持当前间隔 */
+  intervalMinutes?: number
+  /** 可选：不传则保持当前策略 */
+  approvalPolicy?: ScheduledTaskApprovalPolicy
 }

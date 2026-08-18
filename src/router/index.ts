@@ -75,6 +75,30 @@ const routes: Array<RouteRecordRaw> = [
         meta: { requiresAuth: true }
     },
     {
+        path: '/ops-experience',
+        name: 'OpsExperience',
+        component: () => import('../views/OpsExperience.vue'),
+        meta: { requiresAuth: true }
+    },
+    {
+        path: '/ops-experience/new',
+        name: 'OpsExperienceNew',
+        component: () => import('../views/OpsExperienceForm.vue'),
+        meta: { requiresAuth: true }
+    },
+    {
+        path: '/ops-experience/:id',
+        name: 'OpsExperienceDetail',
+        component: () => import('../views/OpsExperienceDetail.vue'),
+        meta: { requiresAuth: true }
+    },
+    {
+        path: '/ops-experience/:id/edit',
+        name: 'OpsExperienceEdit',
+        component: () => import('../views/OpsExperienceForm.vue'),
+        meta: { requiresAuth: true }
+    },
+    {
         path: '/settings/apikey',
         name: 'SettingsApiKey',
         component: () => import('../views/SettingsApiKey.vue'),

@@ -599,7 +599,6 @@ onUnmounted(() => {
             <div class="note-list">
               <div class="note-item">推荐顺序：先执行配置测试，确认语法通过后再执行重载。</div>
               <div class="note-item">如果需要彻底重新拉起服务，再使用重启操作。</div>
-              <div class="note-item">当 `stub_status` 未启用时，活动连接和每秒请求会显示为 `N/A`。</div>
             </div>
             <div class="action-row">
               <button class="primary-btn" :disabled="actionLoading === 'reload'" @click="openActionConfirm('reload')">

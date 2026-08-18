@@ -120,13 +120,7 @@ const isAllSelected = computed(() => {
 })
 
 const parsedPort = computed(() => {
-<<<<<<< HEAD
   const text = String(portInput.value ?? '').trim()
-=======
-  const raw = portInput.value as string | number | null | undefined
-  if (raw === null || raw === undefined) return null
-  const text = String(raw).trim()
->>>>>>> dfd4d13960100f70d4fe8155aea19352e2bd51ec
   if (!text) return null
   if (!/^\d+$/.test(text)) return null
   const value = Number.parseInt(text, 10)

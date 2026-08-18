@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { isAxiosError } from 'axios'
 import type { AlertItem } from '../../types/system'
 import { getAlerts, markAlertRead, markAlertProcessed } from '../../api/system'
 import { useNotification } from '../../composables/useNotification'
@@ -27,15 +28,24 @@ const statusMap: Record<number, { label: string; cls: string }> = {
 async function fetchAlerts() {
   loading.value = true
   try {
-    const res = await getAlerts(page.value - 0, pageSize.value, !includeProcessed.value)
+    const res = await getAlerts(page.value, pageSize.value, !includeProcessed.value)
     if (res.data.code === 1) {
       alerts.value = res.data.data.items
       total.value = res.data.data.total
     } else {
       notification.error('获取告警失败', res.data.msg || '请稍后重试')
     }
-  } catch {
-    notification.error('获取告警失败', '网络异常，请稍后重试')
+  } catch (error: unknown) {
+    if (isAxiosError(error) && !error.response) {
+      const message = error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT'
+        ? '告警接口响应超时，请检查后端服务是否正常'
+        : '无法连接告警接口，请检查后端服务或代理配置'
+      notification.error('获取告警失败', message)
+    } else if (isAxiosError(error) && error.response) {
+      notification.error('获取告警失败', `请求失败（HTTP ${error.response.status}）`)
+    } else {
+      notification.error('获取告警失败', '网络异常，请稍后重试')
+    }
   } finally {
     loading.value = false
   }
